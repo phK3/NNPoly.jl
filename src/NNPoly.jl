@@ -7,6 +7,7 @@ include("utils.jl")
 include("sparse_polynomial.jl")
 include("polynomial_optimization.jl")
 include("approximations/chebyshev.jl")
+include("reachability/nn_poly_zono.jl")
 
 
 
