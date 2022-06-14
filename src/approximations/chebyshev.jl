@@ -64,7 +64,7 @@ Returns the monomial coefficients cᵢ of the Chebyshev approximation and the
 maximum absolute approximation error ϵ,
 s.t. ReLU(x) ∈ c₁ + c₂*x + c₃*x^2 + ... +  ± ϵ for x ∈ [lb, ub]
 """
-function relax_relu(lb, ub, degree::Integer)
+function relax_relu_chebyshev(lb, ub, degree::Integer)
     if ub <= 0
         return zeros(degree+1), 0
     elseif lb >= 0
