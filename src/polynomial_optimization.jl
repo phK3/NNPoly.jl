@@ -110,3 +110,56 @@ function calculate_extrema(sp::SparsePolynomial, lb, ub)
 
     return minimum(ys), maximum(ys)
 end
+
+
+
+"""
+Computes an upper bound for the maximum of a sparse polynomial in direction d
+by branch and bound on the largest generator up to a certain number of steps.
+"""
+function max_in_dir_bab(d, sp::SparsePolynomial; max_steps=10, optimality_gap=1e-3, tol=1e-6, printing=false)
+    p = linear_map(d', sp)
+
+    # as all variables are normalized to [-1, 1], the center is the vector of all zeros
+    center = zeros(length(p.ids))
+
+    queue = PriorityQueue(Base.Order.Reverse)
+
+    lb, ub = bounds(p)
+    ub = ub[1]
+    lb = evaluate(p, center)[1]
+    enqueue!(queue, p, ub[1])
+
+    for i in 1:max_steps
+        printing && println(i, ": max_x p(x) ∈ ", [lb, ub])
+
+        poly, val = peek(queue)
+        dequeue!(queue)
+
+        p1, p2 = split_longest_generator(poly)
+        lb1, ub1 = bounds(p1)
+        lb2, ub2 = bounds(p2)
+        ub1 = ub1[1]
+        ub2 = ub2[1]
+
+        # are bounds monotonically increasing, if we split the largest generator?
+        # @assert (ub1 <= val + tol) && (ub2 <= val + tol) string("Bounds of splits should be tighter than parent's bounds! ($val, $ub1, $ub2)")
+        ub12 = max(ub1, ub2)
+        ub = min(ub, ub12)
+
+        lb1 = evaluate(p1, center)[1]
+        lb2 = evaluate(p2, center)[1]
+        lb = max(lb, lb1, lb2)
+
+        if ub - lb <= optimality_gap
+            printing && println("Found optimal value ∈ ", [lb, ub])
+            return ub
+        end
+
+        # don't add pruned nodes to the queue
+        ub1 > lb && enqueue!(queue, p1, ub1)
+        ub2 > lb && enqueue!(queue, p2, ub2)
+    end
+
+    return ub
+end
