@@ -542,6 +542,10 @@ function truncate_order(sp::SparsePolynomial, order::Integer)
     n, m = size(sp.G)
     desired_generators = n * order
     diff_generators = m - desired_generators + n  # +n as we need to introduce new error terms for each dimension
+
+    if desired_generators >= m
+        return sp
+    end
     return truncation_zono_reduction(sp, diff_generators)
 end
 
@@ -552,6 +556,10 @@ Truncate generators, s.t. a specified number of generators is reached.
 function truncate_desired(sp::SparsePolynomial, desired_generators::Integer)
     n, m = size(sp.G)
     diff_generators = m - desired_generators + n
+
+    if desired_generators >= m
+        return sp
+    end
     return truncation_zono_reduction(sp, diff_generators)
 end
 
