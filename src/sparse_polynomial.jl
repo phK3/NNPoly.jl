@@ -496,6 +496,66 @@ function zono_overapprox(sp::SparsePolynomial)
 end
 
 
+## Truncation
+
+
+"""
+Remove n generators and overapproximate them by an order-1 zonotope (basically
+an interval for each dimension, represented as error-terms).
+"""
+function truncation_zono_reduction(sp::SparsePolynomial, n::Integer)
+    rows, cols = size(sp.G)
+    if rows >= n
+        # we need one error term per dimension, so it doesn't help us, if we reduce less than rows
+        return sp
+    end
+
+    l2s = vec(sum(sp.G .^ 2, dims=1))
+    idxs = sortperm(l2s)[1:n]  # get n smallest terms
+    all_idxs = 1:size(sp.G, 2)
+    remaining_idxs = setdiff(all_idxs, idxs)
+
+    G = sp.G[:, idxs]
+    E = sp.E[:, idxs]
+    poly = SparsePolynomial(G, E, sp.ids)
+    z = zono_overapprox(poly)
+    z = reduce_order(z, 1)
+    Gz = z.generators
+
+    G = sp.G[:, remaining_idxs]
+    E = sp.E[:, remaining_idxs]
+    en, em = size(E)
+
+    G = [G Gz]
+    E = [E zeros(en, rows); zeros(rows, em) I(rows)]
+    max_id = maximum(sp.ids)
+    ids = [sp.ids; max_id+1:max_id+rows]
+    poly = SparsePolynomial(G, E, ids)
+    return translate(poly, z.center)
+end
+
+
+"""
+Truncate generators, s.t. a specified zonotope order is reached.
+"""
+function truncate_order(sp::SparsePolynomial, order::Integer)
+    n, m = size(sp.G)
+    desired_generators = n * order
+    diff_generators = m - desired_generators + n  # +n as we need to introduce new error terms for each dimension
+    return truncation_zono_reduction(sp, diff_generators)
+end
+
+
+"""
+Truncate generators, s.t. a specified number of generators is reached.
+"""
+function truncate_desired(sp::SparsePolynomial, desired_generators::Integer)
+    n, m = size(sp.G)
+    diff_generators = m - desired_generators + n
+    return truncation_zono_reduction(sp, diff_generators)
+end
+
+
 ## Plotting
 
 """
