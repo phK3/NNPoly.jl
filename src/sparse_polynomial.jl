@@ -410,6 +410,29 @@ end
 
 
 """
+Computes interval bounds for each component of a sparse polynomial by splitting
+the polynomial iteratively along the longest generator up to a certain depth.
+
+Splitting is done once to the specified depth, then bounds for all components
+are calculated.
+"""
+function bounds(sp::SparsePolynomial, splitting_depth::Integer)
+    n = size(sp.G, 1)  # dimensions
+    polys = split_longest_generator_iterative(sp, splitting_depth)
+
+    lbs = fill(Inf, n)
+    ubs = fill(-Inf, n)
+    for p in polys
+        l, u = bounds(p)
+        lbs = min.(lbs, l)
+        ubs = max.(ubs, u)
+    end
+
+    return lbs, ubs
+end
+
+
+"""
 Computes an interval bound for the maximum of a sparse polynomial in direction d.
 Variables are assumed to be in range [-1, 1]
 """
