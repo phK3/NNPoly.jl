@@ -13,6 +13,23 @@ struct SparsePolynomial
 end
 
 
+function SparsePolynomial(h::Hyperrectangle)
+    n = dim(h)
+    sp = SparsePolynomial(Float64.(I(n)), I(n), 1:n)
+
+    los = low(h)
+    his = high(h)
+    for i = 1:n
+        sp = normalize_variable(sp, i, los[i], his[i])
+    end
+
+    return sp
+end
+
+
+zono_order(sp::SparsePolynomial) = size(sp.G, 2) / size(sp.G, 1)
+
+
 ## Utility functions
 
 function getMonomialBasis(sp::SparsePolynomial)
