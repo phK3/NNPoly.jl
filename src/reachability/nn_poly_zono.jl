@@ -21,7 +21,7 @@ function NV.forward_act(solver::NNPolyZono, L::NV.Layer{NV.ReLU}, input::SparseP
     lb, ub = bounds(s, solver.bounds_splits)
 
     if solver.approximation == :Chebyshev
-        res = relax_relu_chebyshev(lb, ub, degrees)
+        res = relax_relu_chebyshev.(lb, ub, degrees)
         cs = vecOfVec2Mat(first.(res))
         ϵs = last.(res)
     else
