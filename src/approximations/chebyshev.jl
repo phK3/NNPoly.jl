@@ -68,8 +68,12 @@ function relax_relu_chebyshev(lb, ub, degree::Integer)
     if ub <= 0
         return zeros(degree+1), 0
     elseif lb >= 0
-        return zeros(degree+1), 0
+        cs = zeros(degree+1)
+        cs[2] = 1
+        return cs, 0
     else
+        # f(x) = -x
+        linfun = SparsePolynomial(vecOfVec2Mat([[-1]]), vecOfVec2Mat([[1]]), [1])
         relu_cheby = chebyshev_approximation(x -> max(0, x), degree, lb, ub)
 
         err_l0, err_u0 = calculate_extrema(relu_cheby, lb, 0)  # error for approximation over inactive region
