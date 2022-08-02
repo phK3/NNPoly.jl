@@ -128,13 +128,12 @@ function max_in_dir_bab(d, sp::SparsePolynomial; max_steps=10, optimality_gap=1e
     lb, ub = bounds(p)
     ub = ub[1]
     lb = evaluate(p, center)[1]
-    enqueue!(queue, p, ub[1])
+    enqueue!(queue, p, ub)
 
     for i in 1:max_steps
-        printing && println(i, ": max_x p(x) ∈ ", [lb, ub])
-
-        poly, val = peek(queue)
+        poly, ub = peek(queue)
         dequeue!(queue)
+        printing && println(i, ": max_x p(x) ∈ ", [lb, ub])
 
         p1, p2 = split_longest_generator(poly)
         lb1, ub1 = bounds(p1)
@@ -144,8 +143,7 @@ function max_in_dir_bab(d, sp::SparsePolynomial; max_steps=10, optimality_gap=1e
 
         # are bounds monotonically increasing, if we split the largest generator?
         # @assert (ub1 <= val + tol) && (ub2 <= val + tol) string("Bounds of splits should be tighter than parent's bounds! ($val, $ub1, $ub2)")
-        ub12 = max(ub1, ub2)
-        ub = min(ub, ub12)
+        # ub12 = max(ub1, ub2)
 
         lb1 = evaluate(p1, center)[1]
         lb2 = evaluate(p2, center)[1]
