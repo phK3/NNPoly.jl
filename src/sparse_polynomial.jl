@@ -173,7 +173,8 @@ function quadratic_map(Qs, sp::SparsePolynomial)
     k = length(Qs)
 
     Ĝ = zeros(k, m*m)
-    Ê = zeros(Integer, k, m*m)
+    #Ê = zeros(Integer, k, m*m)
+    Ê = zeros(Integer, length(sp.ids), m*m)
     for j in 1:m
         Gⱼ = vecOfVec2Mat([(sp.G[:,j]' * Qᵢ * sp.G)' for Qᵢ in Qs])
         Eⱼ = sp.E .+ sp.E[:,j] * ones(Integer, m)'  # Integer important, as polynomials have integer exponents
