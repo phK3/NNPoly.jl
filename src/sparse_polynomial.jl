@@ -71,6 +71,15 @@ function compact(sp::SparsePolynomial)
     E = sp.E[:, non_zeros]
     G = sp.G[:, non_zeros]
 
+    if size(G, 2) == 0
+        # all terms were zero
+        # -> create constant zero SparsePolynomial
+        n_dim = size(G, 1)
+        G = zeros(n_dim, 1)
+        E = zeros(Integer, length(sp.ids), 1)
+        return SparsePolynomial(G, E, sp.ids)
+    end
+        
     # permutation for lexicographically sorting the columns of the exponent matrix
     p = sortperm(collect(eachcol(E)))
 
