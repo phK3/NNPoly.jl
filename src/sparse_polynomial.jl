@@ -357,6 +357,13 @@ function split_longest_generator(sp::SparsePolynomial)
     e_order = sum(sp.E, dims=1)
     # constant terms can't be split
     non_const_mask = (e_order .!= 0)'
+
+    if sum(non_const_mask) == 0 
+        # TODO: if used in BaB, maybe pull out, s.t. no unnecessary splitting
+        # only constant terms -> can't split anything
+        return sp
+    end
+
     Ĝ = sp.G[:, non_const_mask]
     Ê = sp.E[:, non_const_mask]
     # choose longest generator in ||.||₂ sense
