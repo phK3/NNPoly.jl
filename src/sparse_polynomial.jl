@@ -44,8 +44,13 @@ order is constant, linear, quadratic, ...
 """
 function get_monomial_coefficients(sp::SparsePolynomial)
     # sort exponents and return corresponding coefficients
+    @assert length(sp.ids) == 1 "only univariate polynomials are supported!\nsp=$sp"
+    @assert size(sp.G, 1) == 1 "only one-dimensional polynomials are supported\nsp=$sp!"
+    # want all monomials until highest order and also the constant term
+    G = zeros(1, maximum(sp.E) + 1)
     p = sortperm(collect(eachcol(sp.E)))
-    G = sp.G[:, p]
+    Ĝ = sp.G[:, p]
+    G[:, vec(sp.E[:, p]) .+ 1] .= Ĝ
     return G[1,:]
 end
 
@@ -358,7 +363,7 @@ function split_longest_generator(sp::SparsePolynomial)
     # constant terms can't be split
     non_const_mask = (e_order .!= 0)'
 
-    if sum(non_const_mask) == 0 
+    if sum(non_const_mask) == 0
         # TODO: if used in BaB, maybe pull out, s.t. no unnecessary splitting
         # only constant terms -> can't split anything
         return sp
