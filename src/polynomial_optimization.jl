@@ -131,6 +131,12 @@ function max_in_dir_bab(d, sp::SparsePolynomial; max_steps=10, optimality_gap=1e
     enqueue!(queue, p, ub)
 
     for i in 1:max_steps
+
+        if ub - lb <= optimality_gap
+            printing && println("Found optimal value ∈ ", [lb, ub])
+            return ub
+        end
+
         poly, ub = peek(queue)
         dequeue!(queue)
         printing && println(i, ": max_x p(x) ∈ ", [lb, ub])
@@ -148,11 +154,6 @@ function max_in_dir_bab(d, sp::SparsePolynomial; max_steps=10, optimality_gap=1e
         lb1 = evaluate(p1, center)[1]
         lb2 = evaluate(p2, center)[1]
         lb = max(lb, lb1, lb2)
-
-        if ub - lb <= optimality_gap
-            printing && println("Found optimal value ∈ ", [lb, ub])
-            return ub
-        end
 
         # don't add pruned nodes to the queue
         ub1 > lb && enqueue!(queue, p1, ub1)
