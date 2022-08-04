@@ -72,7 +72,7 @@ degree - the degree of the approximation (which can be one higher than for usual
     chebyshev approximation due to the function being odd)
 """
 function cheby_odd(f, degree)
-    cheby = NP.chebyshev_approximation(f, degree)
+    cheby = chebyshev_approximation(f, degree)
     odd_mask = vec(isodd.(cheby.E))
     G = cheby.G[:, odd_mask]
     E = cheby.E[:, odd_mask]
@@ -93,7 +93,7 @@ degree - the degree of the approximation (which can be one higher than for usual
     chebyshev approximation due to the function being even)
 """
 function cheby_even(f, degree)
-    cheby = NP.chebyshev_approximation(f, degree)
+    cheby = chebyshev_approximation(f, degree)
     even_mask = vec(iseven.(cheby.E))
     G = cheby.G[:, even_mask]
     E = cheby.E[:, even_mask]
