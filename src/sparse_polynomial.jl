@@ -32,6 +32,25 @@ zono_order(sp::SparsePolynomial) = size(sp.G, 2) / size(sp.G, 1)
 
 ## Utility functions
 
+
+"""
+Creates a SparsePolynomial with only the given monomial term.
+
+args:
+    exponents - (vector) exponents of the individual variables
+
+kwargs:
+    ids - (vector) ids of variables of monomial
+
+"""
+function make_monomial(exponents; ids=nothing)
+    ids = isnothing(ids) ? [1] : ids
+    G = vecOfVec2Mat([[1.]])
+    E = vecOfVec2Mat([exponents])
+    return SparsePolynomial(G, E, ids)
+end
+
+
 function getMonomialBasis(sp::SparsePolynomial)
     @polyvar x[sp.ids]
     return prod(x.^(sp.E), dims=1)
@@ -79,7 +98,7 @@ function compact(sp::SparsePolynomial)
         E = zeros(Integer, length(sp.ids), 1)
         return SparsePolynomial(G, E, sp.ids)
     end
-        
+
     # permutation for lexicographically sorting the columns of the exponent matrix
     p = sortperm(collect(eachcol(E)))
 
@@ -126,6 +145,14 @@ function get_center(sp::SparsePolynomial)
 end
 
 
+"""
+Returns -f(x) for input f(x)
+"""
+function negate(sp::SparsePolynomial)
+    return SparsePolynomial(-sp.G, sp.E, sp.ids)
+end
+
+
 ## Polynomial Arithmetic
 
 
@@ -147,6 +174,16 @@ function exact_addition(sp1::SparsePolynomial, sp2::SparsePolynomial)
     p̂ = SparsePolynomial([sp1.G sp2.G], [sp1.E sp2.E], sp1.ids)
     # compact summarizes terms with common exponent (can this be made more efficient?)
     return compact(p̂)
+end
+
+
+"""
+Component-wise substraction sp1 - sp2 of two polynomials
+Both polynomials have to depend on the same variables
+(i.e. the variable identifiers have to be equal)
+"""
+function subtract(sp1::SparsePolynomial, sp2::SparsePolynomial)
+    return exact_addition(sp1, negate(sp2))
 end
 
 
