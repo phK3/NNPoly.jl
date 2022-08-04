@@ -60,6 +60,48 @@ end
 
 
 """
+Chebyshev approximation of odd function.
+
+Chebyshev approximations of odd functions have only odd monomials with non-zero
+coefficients. Therefore, if we want a third-order approximation of odd f(x),
+we can calculate the fourth-order chebyshev approximation and use its sampling
+points, as we know the quartic term will be zero.
+
+f - the function to approximate (must be an odd function)
+degree - the degree of the approximation (which can be one higher than for usual
+    chebyshev approximation due to the function being odd)
+"""
+function cheby_odd(f, degree)
+    cheby = NP.chebyshev_approximation(f, degree)
+    odd_mask = vec(isodd.(cheby.E))
+    G = cheby.G[:, odd_mask]
+    E = cheby.E[:, odd_mask]
+    return SparsePolynomial(G, E, cheby.ids)
+end
+
+
+"""
+Chebyshev approximation of even function.
+
+Chebyshev approximations of even functions have only even monomials with non-zero
+coefficients. Therefore, if we want a fourth-order approximation of even f(x),
+we can calculate the fifth-order chebyshev approximation and use its sampling
+points, as we know the quintic term will be zero.
+
+f - the function to approximate (must be an even function)
+degree - the degree of the approximation (which can be one higher than for usual
+    chebyshev approximation due to the function being even)
+"""
+function cheby_even(f, degree)
+    cheby = NP.chebyshev_approximation(f, degree)
+    even_mask = vec(iseven.(cheby.E))
+    G = cheby.G[:, even_mask]
+    E = cheby.E[:, even_mask]
+    return SparsePolynomial(G, E, cheby.ids)
+end
+
+
+"""
 Returns the monomial coefficients cᵢ of the Chebyshev approximation and the
 maximum absolute approximation error ϵ,
 s.t. ReLU(x) ∈ c₁ + c₂*x + c₃*x^2 + ... +  ± ϵ for x ∈ [lb, ub]
