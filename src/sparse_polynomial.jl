@@ -85,26 +85,12 @@ Removes duplicate monomial entries by summing up monomial coefficients for
     monomials with same exponents.
 """
 function compact(sp::SparsePolynomial)
-    # remove zero generators
-    non_zeros = vec(sum(abs.(sp.G), dims=1) .!= 0)
-    E = sp.E[:, non_zeros]
-    G = sp.G[:, non_zeros]
-
-    if size(G, 2) == 0
-        # all terms were zero
-        # -> create constant zero SparsePolynomial
-        n_dim = size(G, 1)
-        G = zeros(n_dim, 1)
-        E = zeros(Integer, length(sp.ids), 1)
-        return SparsePolynomial(G, E, sp.ids)
-    end
-
     # permutation for lexicographically sorting the columns of the exponent matrix
-    p = sortperm(collect(eachcol(E)))
+    p = sortperm(collect(eachcol(sp.E)))
 
     # apply the permutation to the columns
-    E = E[:, p]
-    G = G[:, p]
+    E = sp.E[:, p]
+    G = sp.G[:, p]
 
     # only retain unique columns (no duplicates)
     Ê = unique(E, dims=2)
