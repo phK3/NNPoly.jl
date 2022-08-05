@@ -109,7 +109,47 @@ function compact(sp::SparsePolynomial)
         prev_col = curr_col
     end
 
+    # remove zero generators
+    # needs to be done *after* summarization, because we generators might cancel
+    # out in the process!
+    non_zeros = vec(sum(abs.(Ĝ), dims=1) .!= 0)
+    Ê = Ê[:, non_zeros]
+    Ĝ = Ĝ[:, non_zeros]
+
+    if size(Ĝ, 2) == 0
+        # all terms were zero
+        # -> create constant zero SparsePolynomial
+        n_dim = size(Ĝ, 1)
+        Ĝ = zeros(n_dim, 1)
+        Ê = zeros(Integer, length(sp.ids), 1)
+    end
+
     return SparsePolynomial(Ĝ, Ê, sp.ids)
+end
+
+
+"""
+Adds ids of new variables, that have no terms associated with them, to a polynomial.
+
+args:
+    sp - (SparsePolynomial) the polynomial
+    new_ids - (Vector{Integer}) the ids of the new variables
+"""
+function expand_ids(sp::SparsePolynomial, new_ids)
+    n_ids, n_gens = size(sp.E)
+
+    # keep ids sorted
+    ids = sort(sp.ids ∪ new_ids)
+    Ê = zeros(Integer, length(ids), n_gens)
+
+    for (i, id) in enumerate(ids)
+        if id in sp.ids
+            Ê[i, :] .= vec(sp.E[sp.ids .== id, :])
+        end
+        # other ids were not in sp and are thus zero
+    end
+
+    return SparsePolynomial(sp.G, Ê, ids)
 end
 
 
