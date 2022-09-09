@@ -671,6 +671,49 @@ function truncate_desired(sp::SparsePolynomial, desired_generators::Integer)
 end
 
 
+## Stacking two polynomials on top of each other
+
+"""
+Creates a SparsePolynomial that represents a vertical stacking of the given polynomials.
+(the dimensions of the first polynomial are the first dimensions of the output polynomial,
+the dimensions of the second polynomial are the second dimensions of the output polynomial, ...)
+
+args:
+    polys - (Vector of SparsePolynomial) polynomials to be stacked
+"""
+function stack_polys(polys)
+    # TODO: really slow implementation
+    if length(polys) == 2
+        p1 = polys[1]
+        p2 = polys[2]
+        n1, m1 = size(p1.G)
+        n2, m2 = size(p2.G)
+        G = [p1.G zeros(n1, m2); zeros(n2, m1) p2.G]
+
+        # is this necessary?
+        ids = sort(p1.ids ∪ p2.ids)
+        E = zeros(Integer, length(ids), size(G, 2))
+
+        for (i, id) in enumerate(ids)
+            if id in p1.ids
+                E[i, 1:m1] .= vec(p1.E[p1.ids .== id, :])
+            end
+
+            # ids can occur in both polynomials
+            if id in p2.ids
+                E[i, m1+1:end] .= vec(p2.E[p2.ids .== id, :])
+            end
+        end
+
+        return compact(SparsePolynomial(G, E, ids))
+    else
+        p1 = polys[1]
+        p2 = stack_polys(polys[2:end])
+        return stack_polys([p1, p2])
+    end
+end
+
+
 ## Plotting
 
 """
