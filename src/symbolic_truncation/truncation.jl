@@ -91,6 +91,11 @@ kwargs:
 function truncate_symbolic_desired(sp::SparsePolynomial, n::Integer; lower=true, upper=true)
     # lower - keep searching for lower bound, upper - keep searching for upper bound
     # n is number of desired generators
+    if size(sp.G, 2) <= n
+        # we don't need to truncate, if we already have less than n generators
+        return sp, sp
+    end
+
     l2s = vec(sum(sp.G .^ 2, dims=1))
     idx = argmin(l2s)
 
