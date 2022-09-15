@@ -47,7 +47,7 @@ end
 Truncate the n_gens smallest generators in the sparse polynomial by overapproximating
 them with intervals.
 """
-function truncate_generators_non_const(sp::SparsePolynomial, n_gens::Integer)
+function truncate_generators(sp::SparsePolynomial, n_gens::Integer)
     n_gens <= 0 && return sp, sp
 
     n, m = size(sp.G)
@@ -85,7 +85,7 @@ function truncate_generators_non_const(sp::SparsePolynomial, n_gens::Integer)
 
     #@show maximum(ub)
     #@show minimum(lb)
-    
+
     remaining_idxs = setdiff(all_idxs, truncated_idxs)
 
     G = sp.G[:, remaining_idxs]
