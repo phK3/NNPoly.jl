@@ -74,6 +74,28 @@ function get_monomial_coefficients(sp::SparsePolynomial)
 end
 
 
+"""
+return all monomial coefficients for univariate one-dimensional polynomials up to
+order n_order.
+"""
+function get_specific_monomial_coefficients(sp::SparsePolynomial, n_order::Integer)
+    # sort exponents and return corresponding coefficients
+    @assert length(sp.ids) == 1 "only univariate polynomials are supported!\nsp=$sp"
+    @assert size(sp.G, 1) == 1 "only one-dimensional polynomials are supported\nsp=$sp!"
+    # want all monomials until n_order and also the constant term
+    G = zeros(1, n_order + 1)
+
+    for (i, e) in enumerate(sp.E)
+        # need e+1, since the constant term is at the first index, not zero
+        if e <= n_order
+            G[:, e+1] .= sp.G[:, i]
+        end
+    end
+
+    return G[1,:]
+end
+
+
 function sparsePoly2DynamicPoly(sp::SparsePolynomial)
     basis = getMonomialBasis(sp)
     return sp.G * basis'
