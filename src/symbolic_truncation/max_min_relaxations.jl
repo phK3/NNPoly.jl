@@ -58,6 +58,12 @@ function relax_min_lower(x, y; printing=false, max_steps=30, optimality_gap=1e-4
 end
 
 
+function relax_min_max_non_parallel(x, y; printing=false, max_steps=30, optimality_gap=1e-4)
+    l_relax = relax_min_lower(x, y, printing=printing, max_steps=max_steps, optimality_gap=optimality_gap)
+    u_relax = relax_max_upper(x, y, printing=printing, max_steps=max_steps, optimality_gap=optimality_gap)
+    return l_relax, u_relax
+end
+
 """
 Creates parallel symbolic relaxation of [min(x,y), max(x, y)] where x,y can be any SparsePolynomials.
 
@@ -89,3 +95,14 @@ function relax_min_max_parallel(x, y; printing=false, max_steps=30, optimality_g
 
     return l_relax, u_relax
 end
+
+
+function relax_min_max(x, y; printing=false, max_steps=30, optimality_gap=1e-4, parallel=false)
+    if parallel
+        l_relax, u_relax = relax_min_max_parallel(x, y; printing=printing, max_steps=max_steps, optimality_gap=optimality_gap)
+    else
+        l_relax, u_relax = relax_min_max_non_parallel(x, y; printing=printing, max_steps=max_steps, optimality_gap=optimality_gap)
+    end
+
+    return l_relax, u_relax
+end        
