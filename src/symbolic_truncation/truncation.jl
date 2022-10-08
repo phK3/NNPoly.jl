@@ -55,15 +55,23 @@ function truncate_symbolic(sp::SparsePolynomial, idx)
     all_idxs = 1:size(sp.G, 2)
     remaining_idxs = setdiff(all_idxs, idx)
 
+    lpoly = exact_addition(multiply(max.(0, sp.G[:, idx]), l_relax), multiply(min.(0, sp.G[:, idx]), u_relax))
+    Gₗ = [sp.G[:, remaining_idxs] lpoly.G]
+    Eₗ = [sp.E[:, remaining_idxs] lpoly.E]
+
+    upoly = exact_addition(multiply(max.(0, sp.G[:, idx]), u_relax), multiply(min.(0, sp.G[:, idx]), l_relax))
+    Gᵤ = [sp.G[:, remaining_idxs] upoly.G]
+    Eᵤ = [sp.E[:, remaining_idxs] upoly.E]
+
     # for lower bound, multiply positive coeffs with l_relax, negative coeffs with u_relax
-    Ĝ = max.(0, sp.G[:, idx]) .* l_relax.G .+ min.(0, sp.G[:, idx]) .* u_relax.G
-    Gₗ = [sp.G[:, remaining_idxs] Ĝ]
-    Eₗ = [sp.E[:, remaining_idxs] l_relax.E]
+    #Ĝ = max.(0, sp.G[:, idx]) .* l_relax.G .+ min.(0, sp.G[:, idx]) .* u_relax.G
+    #Gₗ = [sp.G[:, remaining_idxs] Ĝ]
+    #Eₗ = [sp.E[:, remaining_idxs] l_relax.E]
 
     # for upper bound, multiply positive coeffs with u_relax, negative coeffs with l_relax
-    Ĝ = max.(0, sp.G[:, idx]) .* u_relax.G .+ min.(0, sp.G[:, idx]) .* l_relax.G
-    Gᵤ = [sp.G[:, remaining_idxs] Ĝ]
-    Eᵤ = [sp.E[:, remaining_idxs] u_relax.E]
+    #Ĝ = max.(0, sp.G[:, idx]) .* u_relax.G .+ min.(0, sp.G[:, idx]) .* l_relax.G
+    #Gᵤ = [sp.G[:, remaining_idxs] Ĝ]
+    #Eᵤ = [sp.E[:, remaining_idxs] u_relax.E]
 
     spₗ = compact(SparsePolynomial(Gₗ, Eₗ, sp.ids))
     spᵤ = compact(SparsePolynomial(Gᵤ, Eᵤ, sp.ids))
