@@ -7,6 +7,7 @@ include("utils.jl")
 include("sparse_polynomial.jl")
 include("polynomial_optimization.jl")
 include("approximations/chebyshev.jl")
+include("approximations/crown_quadratic.jl")
 
 include("symbolic_truncation/max_min_relaxations.jl")
 include("symbolic_truncation/univariate_monomial_relaxations.jl")
