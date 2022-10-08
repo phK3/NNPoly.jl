@@ -124,7 +124,7 @@ function relax_relu_chebyshev(lb, ub, degree::Integer)
         ϵᵤ = max(err_u0, err_u1)
         ϵ = ϵᵤ - ϵₗ
 
-        cs = get_monomial_coefficients(relu_cheby)
+        cs = get_monomial_coefficients(relu_cheby, degree)
         cs[1] -= 0.5 * (ϵᵤ + ϵₗ)
         return cs, 0.5*ϵ  # half as we return the center function
     end
