@@ -78,7 +78,7 @@ end
 return all monomial coefficients for univariate one-dimensional polynomials up to
 order n_order.
 """
-function get_specific_monomial_coefficients(sp::SparsePolynomial, n_order::Integer)
+function get_monomial_coefficients(sp::SparsePolynomial, n_order::Integer)
     # sort exponents and return corresponding coefficients
     @assert length(sp.ids) == 1 "only univariate polynomials are supported!\nsp=$sp"
     @assert size(sp.G, 1) == 1 "only one-dimensional polynomials are supported\nsp=$sp!"
@@ -222,6 +222,17 @@ function exact_addition(sp1::SparsePolynomial, sp2::SparsePolynomial)
     p̂ = SparsePolynomial([sp1.G sp2.G], [sp1.E sp2.E], sp1.ids)
     # compact summarizes terms with common exponent (can this be made more efficient?)
     return compact(p̂)
+end
+
+
+"""
+Multiply each dimension with the same scalar or multiply each dimension with a
+specific scalar for that dimension.
+"""
+function multiply(a::Union{N, Vector{N}}, sp::SparsePolynomial) where N <: Number
+    # @assert length(a) == 1 || length(a) == size(sp.G, 1) "|a| = $(length(a)), but size(G) = $(size(sp.G))"
+    Ĝ = a .* sp.G
+    return SparsePolynomial(Ĝ, sp.E, sp.ids)
 end
 
 
