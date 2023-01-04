@@ -118,7 +118,7 @@ function compact(sp::SparsePolynomial)
     Ê = unique(E, dims=2)
     m = size(Ê, 2)
     n = size(G, 1)
-    Ĝ = zeros(n, m)
+    Ĝ_z = Zygote.Buffer(zeros(n, m))
 
     prev_col = nothing
     g_idx = 0
@@ -127,13 +127,14 @@ function compact(sp::SparsePolynomial)
         if prev_col != curr_col
             g_idx += 1
         end
-        Ĝ[:, g_idx] .+= G[:, j]
+        Ĝ_z[:, g_idx] .+= G[:, j]
         prev_col = curr_col
     end
 
     # remove zero generators
     # needs to be done *after* summarization, because we generators might cancel
     # out in the process!
+    Ĝ = copy(Ĝ_z)  # can work on normal array again instead of Zygote.Buffer
     non_zeros = vec(sum(abs.(Ĝ), dims=1) .!= 0)
     Ê = Ê[:, non_zeros]
     Ĝ = Ĝ[:, non_zeros]

@@ -1,6 +1,7 @@
 module NNPoly
 
-using LazySets, DynamicPolynomials, RecipesBase, DataStructures, NeuralVerification, Parameters, LinearAlgebra
+using LazySets, DynamicPolynomials, RecipesBase, DataStructures, NeuralVerification,
+        Parameters, LinearAlgebra, Zygote
 const NV = NeuralVerification
 
 include("utils.jl")
