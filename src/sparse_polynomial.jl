@@ -127,7 +127,7 @@ function compact(sp::SparsePolynomial)
         if prev_col != curr_col
             g_idx += 1
         end
-        Ĝ_z[:, g_idx] .+= G[:, j]
+        Ĝ_z[:, g_idx] += G[:, j]
         prev_col = curr_col
     end
 
