@@ -264,17 +264,8 @@ end
 
 function affine_map(A, sp::SparsePolynomial, b)
     # TODO: maybe store center as its own field, or just keep generators sorted?
-    # find column index of constant monomial
-    idxs = findall(vec(sum(sp.E, dims=1)) .== 0)
-    if length(idxs) > 0
-        c_idx = idxs[1]
-        G = A*sp.G
-        G[:,c_idx] .+= b
-        return SparsePolynomial(G, sp.E, sp.ids)
-    else
-        p_lin = linear_map(A, sp)
-        return translate(p_lin, b)
-    end
+    p_lin = linear_map(A, sp)
+    return translate(p_lin, b)
 end
 
 
@@ -741,6 +732,7 @@ function stack_polys(polys)
 
         return compact(SparsePolynomial(G, E, ids))
     else
+        # can we split in half instead of only appending one element at a time
         p1 = polys[1]
         p2 = stack_polys(polys[2:end])
         return stack_polys([p1, p2])
