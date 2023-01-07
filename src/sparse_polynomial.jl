@@ -115,26 +115,31 @@ function compact(sp::SparsePolynomial)
     G = sp.G[:, p]
 
     # only retain unique columns (no duplicates)
-    Ê = unique(E, dims=2)
+    Ê = unique(E, dims=2)  # could skip this and set Ê = E[unique_mask[unique_mask .!= 0], :]
     m = size(Ê, 2)
     n = size(G, 1)
-    Ĝ_z = Zygote.Buffer(zeros(n, m))
 
-    prev_col = nothing
-    g_idx = 0
-    for j in 1:size(E, 2)
-        curr_col = E[:,j]
-        if prev_col != curr_col
-            g_idx += 1
-        end
-        Ĝ_z[:, g_idx] += G[:, j]
-        prev_col = curr_col
-    end
+    # TODO: maybe write rrule nonetheless, so we only need to store indices unique_mask[unique_mask .!= 0]
+    # (the indices of unique exponents)
+
+    # 1 iff current col is different from col before
+    unique_mask = [1; [E[:,i] != E[:,i-1] for i in 2:size(E,2)]]
+    # now v has nⱼ entries of index j iff column j of Ê appears nⱼ times in E
+    col_idxs = cumsum(unique_mask)
+
+    # sparse matrix because only exactly one entry per row
+    # every row has at least one 1 as each col of G is used exactly once -> I = 1:size(G,2)
+    # sum over duplicate columns -> the column-indices specified in v
+    # all columns get added up with weight 1
+    # S has number of rows equal to number of columns of G -> size(G, 2)
+    # S has number of columns equal to number of columns of Ê -> size(Ê, 2)
+    S = sparse(1:size(G,2), col_idxs, 1, size(G, 2), size(Ê, 2))
+
+    Ĝ = G * S
 
     # remove zero generators
     # needs to be done *after* summarization, because we generators might cancel
     # out in the process!
-    Ĝ = copy(Ĝ_z)  # can work on normal array again instead of Zygote.Buffer
     non_zeros = vec(sum(abs.(Ĝ), dims=1) .!= 0)
     Ê = Ê[:, non_zeros]
     Ĝ = Ĝ[:, non_zeros]
