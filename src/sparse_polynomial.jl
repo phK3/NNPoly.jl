@@ -303,7 +303,7 @@ function quadratic_map_1d(qs, sp::SparsePolynomial)
     Ĝ = qs .* repeat(sp.G, inner=(1, m)) .* repeat(sp.G, 1, m)
     # multiplying with 1 vector is just repeating
     # Ê = [E₁ E₂ ... Eₘ], Eⱼ = E + E[:,j] * ones(Integer, m)'
-    Ê = repeat(sp.E, inner=(1, m)) .+ repeat(sp.E, 1, m)
+    Ê = @ignore_derivatives repeat(sp.E, inner=(1, m)) .+ repeat(sp.E, 1, m)
 
     return compact(SparsePolynomial(Ĝ, Ê, sp.ids))
 end
@@ -319,6 +319,7 @@ function quadratic_propagation(a, b, c, sp::SparsePolynomial)
     p_quad = quadratic_map_1d(a, sp)
     G_lin = b .* sp.G
     p_affine = SparsePolynomial([c G_lin], [zeros(Integer, length(sp.ids)) sp.E], sp.ids)
+    # TODO: how much computation can we save by knowing that both came from the same polynomial?
     return exact_addition(p_quad, p_affine)
 end
 
