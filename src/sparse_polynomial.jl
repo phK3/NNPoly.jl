@@ -20,6 +20,7 @@ function SparsePolynomial(h::Hyperrectangle)
     los = low(h)
     his = high(h)
     for i = 1:n
+        # TODO: don't use normalize_variable() here, just directly compute representation (just like for Zonotope)
         sp = normalize_variable(sp, i, los[i], his[i])
     end
 
@@ -284,16 +285,8 @@ function quadratic_map(Qs, sp::SparsePolynomial)
     n, m = size(sp.G)
     k = length(Qs)
 
-    Ĝ = zeros(k, m*m)
-    #Ê = zeros(Integer, k, m*m)
-    Ê = zeros(Integer, length(sp.ids), m*m)
-    for j in 1:m
-        Gⱼ = vecOfVec2Mat([(sp.G[:,j]' * Qᵢ * sp.G)' for Qᵢ in Qs])
-        Eⱼ = sp.E .+ sp.E[:,j] * ones(Integer, m)'  # Integer important, as polynomials have integer exponents
-
-        Ĝ[:, (j-1)*m + 1:j*m] .= Gⱼ
-        Ê[:, (j-1)*m + 1:j*m] .= Eⱼ
-    end
+    Ĝ = reduce(hcat, [vec(sp.G'*Qᵢ'*sp.G) for Qᵢ in Qs])'
+    Ê = @ignore_derivatives repeat(sp.E, 1, m) .+ repeat(sp.E, inner=(1,m))
 
     return compact(SparsePolynomial(Ĝ, Ê, sp.ids))
 end
