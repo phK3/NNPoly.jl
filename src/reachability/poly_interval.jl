@@ -50,48 +50,26 @@ them with intervals.
 function truncate_generators(sp::SparsePolynomial, n_gens::Integer)
     n_gens <= 0 && return sp, sp
 
-    n, m = size(sp.G)
     l2s = vec(sum(sp.G .^2, dims=1))
     idxs = sortperm(l2s)
-    all_idxs = 1:m
 
-    truncated = 0
-    truncated_idxs = zeros(n_gens)
-    ub = zeros(n)
-    lb = zeros(n)
-
-    i = 0
-    while truncated < n_gens
-        i += 1
-        idx = idxs[i]
-        ei = sp.E[:,idx]
-
-        if sum(ei) == 0
-            # can't truncate constants
-            continue
-        elseif all(iseven.(ei))
-            # if negative generator, we can add 0, as even exponent can never be negative
-            ub .+= max.(0, sp.G[:,idx])
-            # if positive generator, we can add 0
-            lb .+= min.(0, sp.G[:,idx])
-        else
-            ub .+= abs.(sp.G[:,idx])
-            lb .-= abs.(sp.G[:,idx])
-        end
-
-        truncated += 1
-        truncated_idxs[truncated] = idx
+    E = @view sp.E[:,idxs[1:n_gens]]
+    if 0 in sum(E, dims=1)
+        # the constant term is included, but its truncation has no effect
+        # so truncate one more term
+        n_gens += 1
     end
+    
+    G = sp.G[:, idxs[1:n_gens]]  # slightly faster with @view but only for large matrices?
+    E = sp.E[:, idxs[1:n_gens]]
+    lb, ub = bounds_modified(SparsePolynomial(G, E, sp.ids))
 
-    #@show maximum(ub)
-    #@show minimum(lb)
+    spt = SparsePolynomial(sp.G[:, idxs[n_gens+1:end]], sp.E[:, idxs[n_gens+1:end]], sp.ids)
+    # TODO: most of the time is actually spent doing the translate operations!!!
+    spl = translate(spt, lb)
+    spu = translate(spt, ub)
 
-    remaining_idxs = setdiff(all_idxs, truncated_idxs)
-
-    G = sp.G[:, remaining_idxs]
-    E = sp.E[:, remaining_idxs]
-    s = SparsePolynomial(G, E, sp.ids)
-    return translate(s, lb), translate(s, ub)
+    return spl, spu
 end
 
 
