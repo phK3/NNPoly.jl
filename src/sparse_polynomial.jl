@@ -501,24 +501,34 @@ end
 
 
 """
+Computes lower bound for monomial x₁^e₁ ⋅ x₂^e₂ ...
+without a scalar factor.
+Values of the variables are assumed to be within [-1, 1]
+"""
+function monomial_lb(e)
+    # if exponents for all variables are 0, we have a constant
+    if sum(e) == 0
+        lb = 1.
+    # if all exponents are even, result will be ≧ 0
+    elseif all(iseven.(e))
+        lb = 0.
+    # otherwise lower bound will be -1
+    else
+        lb = -1.
+    end
+
+    return lb
+end
+
+"""
 Computes component-wise bounds on monomials xᵢⁿxⱼᵐxₖᵒ... of a sparse polynomial
 without a scalar factor.
 Values of the variables are assumed to be within [-1, 1].
 """
 function exponent_bounds(sp::SparsePolynomial)
     n, m = size(sp.E)
-    lbs = -ones(m)
-    ubs = ones(m)
-    for (j, ej) in enumerate(eachcol(sp.E))
-        if sum(ej) == 0
-            # constant term
-            lbs[j] = 1
-            ubs[j] = 1
-        elseif all(iseven.(ej))
-            lbs[j] = 0
-            ubs[j] = 1
-        end
-    end
+    lbs = [monomial_lb(ej) for ej in eachcol(sp.E)]
+    ubs = ones(m)  # ub is just always 1 under our assumptions
 
     return lbs, ubs
 end
