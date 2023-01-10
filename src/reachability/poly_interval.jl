@@ -59,10 +59,10 @@ function truncate_generators(sp::SparsePolynomial, n_gens::Integer)
         # so truncate one more term
         n_gens += 1
     end
-    
+
     G = sp.G[:, idxs[1:n_gens]]  # slightly faster with @view but only for large matrices?
     E = sp.E[:, idxs[1:n_gens]]
-    lb, ub = bounds_modified(SparsePolynomial(G, E, sp.ids))
+    lb, ub = bounds(SparsePolynomial(G, E, sp.ids))
 
     spt = SparsePolynomial(sp.G[:, idxs[n_gens+1:end]], sp.E[:, idxs[n_gens+1:end]], sp.ids)
     # TODO: most of the time is actually spent doing the translate operations!!!
