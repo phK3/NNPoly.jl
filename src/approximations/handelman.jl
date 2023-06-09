@@ -212,6 +212,7 @@ l(x) ≤ min(cl(x), cu(x))
 
 Comparison to relaxation via maximum: If cl(x) and cu(x) are not equal, there
 will be greater overapproximation due to the overapproximation of min!
+However, finding a closed-form initialization is easier.
 
 args:
     lb - concrete lower bound of the ReLU's input
@@ -224,14 +225,22 @@ returns:
     lower relaxation - ([degree+1]) with c₁ + c₂x + c₃x^2 + ... ≤ ReLU(x)
 """
 function get_lower_polynomial_min(lb, ub, degree, s, t)
-    Aₗ = NP.get_handelman_coefficients(lb, 0, degree)
-    Aᵤ = NP.get_handelman_coefficients(0, ub, degree)
+    if lb >= 0
+        # differentiable way to get unit vector
+        e₂ = (1:degree+1 .== 2)
+        return e₂
+    elseif ub <= 0
+        return zeros(degree + 1)
+    end
+
+    Aₗ = get_handelman_coefficients(lb, 0, degree)
+    Aᵤ = get_handelman_coefficients(0, ub, degree)
 
     e₂ = (1:degree + 1 .== 2)
     cl = -Aₗ*s.^2
     cu = -Aᵤ*t.^2 .+ e₂
 
-    l, u = NP.calculate_extrema(cl .- cu, lb, ub)  # swap order of subtraction for -(cu - cl)
+    l, u = calculate_extrema(cl .- cu, lb, ub)  # swap order of subtraction for -(cu - cl)
 
     λ = NV.relaxed_relu_gradient(l, u)
     β = -l
@@ -240,4 +249,124 @@ function get_lower_polynomial_min(lb, ub, degree, s, t)
     cs = λ .* (cl .- cu) .+ e₁ .* λ*max(0, β)
 
     return cl .- cs
+end
+
+
+## Initializations for Handelman multipliers
+#  for get_lower_polynomial_min and get_upper_polynomial
+
+
+"""
+Initialize the Handelman multipliers for get_upper_polynomial(), s.t.
+we get the upper CROWNQuad relaxation.
+"""
+function initialize_CROWNQuad_upper(l, u)
+    s = zeros(6)
+    t = zeros(6)
+    if -l < u
+        @assert -l < u "The following formula is only valid if -l < u, but l = $l, u = $u"
+        s[4] = 1 + (2*l)/(u-l)  # s[4] ≥ 0 since -(|l|+|l|)/(u + |l|) ≤ 1 because of condition |l| < u
+        s[6] = -l / (l-u)^2
+
+        t[3] = -l / (l-u)^2
+    elseif -l > u
+        s[6] = u / (l-u)^2
+
+        # we set t₅ = 0 since it is a free param
+        t[2] = (l+u) / (l-u)
+        t[3] = u / (l-u)^2
+    end
+
+    return s, t
+end
+
+
+"""
+Initialize Handelman multipliers for get_lower_polynomial_min(), s.t.
+we get the lower CROWNQuad relaxation
+"""
+function initialize_CROWNQuad_lower(l, u)
+    s = zeros(6)
+    t = zeros(6)
+
+    if -l >= u
+        # zero
+        # s: nothing to do, all multipliers = 0
+        t[4] = 1
+        # or set
+        # t[5] = 1 / u
+        # t[6] = 1 / u
+    elseif u >= -2*l
+        # identity
+        s[2] = 1
+        # can just set t to zero
+    else
+        s[5] = 1 / (u - l)
+        t[5] = 1 / (u - l)
+    end
+
+    return s, t
+end
+
+
+"""
+Initialize Handelman multipliers, s.t. we get the CROWNQuad relaxation.
+
+!!! need to use get_lower_polynomial_min() for valid results !!!
+"""
+function initialize_CROWNQuad(l, u)
+    sₗ, tₗ = initialize_CROWNQuad_lower(l, u)
+    sᵤ, tᵤ = initialize_CROWNQuad_upper(l, u)
+
+    return sₗ, tₗ, sᵤ, tᵤ
+end
+
+
+"""
+Initialize the Handelman multipliers for get_upper_polynomial(), s.t.
+we get the linear upper relaxation.
+"""
+function initialize_linear_upper(l, u)
+    s = zeros(6)
+    t = zeros(6)
+
+    s[4] = -u / (l - u)
+    t[2] = l / (l - u)
+
+    return s, t
+end
+
+
+"""
+Initialize Handelman multipliers for get_lower_polynomial_min(), s.t.
+we get the linear lower relaxation
+"""
+function initialize_linear_lower(l, u)
+    s = zeros(6)
+    t = zeros(6)
+
+    if -l >= u
+        # zero
+        # s: nothing to do, all multipliers = 0
+        t[4] = 1
+    else u >= -2*l
+        # identity
+        s[2] = 1
+        # can just set t to zero
+    end
+
+    return s, t
+end
+
+
+"""
+Initialize Handelman multipliers, s.t. we get the linear DeepPoly relaxation.
+
+!!! need to use get_lower_polynomial_min() for valid results !!!
+"""
+function initialize_CROWNQuad(l, u)
+    sₗ, tₗ = initialize_linear_lower(l, u)
+    sᵤ, tᵤ = initialize_linear_upper(l, u)
+
+    return sₗ, tₗ, sᵤ, tᵤ
 end
