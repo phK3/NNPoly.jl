@@ -70,6 +70,21 @@ function calculate_critical_points(sp::SparsePolynomial)
     @assert length(sp.ids) == 1 string("only univariate polynomials!")
     cs = get_monomial_coefficients(sp)
 
+    return calculate_critical_points(cs)
+end
+
+
+"""
+Calculates the critical points (roots of the derivative) of the univariate polynomial
+p(x) = c₁ + c₂x + c₃x² + c₄x³ + ...
+
+Can handle one-dimensional univariate polynomials up to degree 4.
+
+returns
+    x_opt ([Number]) - positions of extrema of p
+    y_opt ([Number]) - values of p at x_opt
+"""
+function calculate_critical_points(cs)
     # one coefficient -> constant, 2 coeffs -> linear, 3 coeffs -> quadratic, ...
     if length(cs) == 1
         # !!! be careful, optimal value is not only at x_opt
@@ -91,7 +106,8 @@ function calculate_critical_points(sp::SparsePolynomial)
         throw(ArgumentError("Polynomial has degree larger than 4! p = $p"))
     end
 
-    y_opt = [evaluate(sp, xᵢ)[1] for xᵢ in x_opt]
+    p = x -> cs' * [x^i for i in 0:length(cs) - 1]
+    y_opt = p.(x_opt)
     return x_opt, y_opt
 end
 
@@ -101,16 +117,32 @@ Calculates the extrema of the one-dimensional univariate polynomial p(x) over x 
 Returns the minimum and maximum value of p(x) over the domain.
 """
 function calculate_extrema(sp::SparsePolynomial, lb, ub)
-    x_opt, y_opt = calculate_critical_points(sp)
-    yₗ = evaluate(sp, lb)[1]
-    yᵤ = evaluate(sp, ub)[1]
+    cs = get_monomial_coefficients(sp)
+    return calculate_extrema(cs, lb, ub)
+end
 
-    ys = [y_opt[i] for i in 1:length(y_opt) if lb < x_opt[i] && x_opt[i] < ub]
+
+"""
+Calculates the extrema of the one-dimensional univariate polynomial
+p(x) = c₁ + c₂x + c₃x² + c₄x³ + ...
+over x ∈ [lb, ub].
+
+Returns the minimum and maximum value of p(x) over the domain.
+"""
+function calculate_extrema(cs, lb, ub)
+    x_opt, y_opt = calculate_critical_points(cs)
+
+    p = x -> cs' * [x^i for i in 0:length(cs) - 1]
+    yₗ = p(lb)
+    yᵤ = p(ub)
+
+    # lower alternative is differentiable by Zygote
+    # ys = [y_opt[i] for i in 1:length(y_opt) if lb < x_opt[i] && x_opt[i] < ub]
+    ys = y_opt[(lb .< x_opt) .& (x_opt .< ub)]
     ys = [ys; yₗ; yᵤ]
 
     return minimum(ys), maximum(ys)
 end
-
 
 
 """
