@@ -78,11 +78,13 @@ end
 """
 return all monomial coefficients for univariate one-dimensional polynomials up to
 order n_order.
+
+Order is constant, linear, quadratic, ...
 """
 function get_monomial_coefficients(sp::SparsePolynomial, n_order::Integer)
     # sort exponents and return corresponding coefficients
     @assert length(sp.ids) == 1 "only univariate polynomials are supported!\nsp=$sp"
-    @assert size(sp.G, 1) == 1 "only one-dimensional polynomials are supported\nsp=$sp!"
+    @assert size(sp.G, 1) == 1 "only one-dimensional polynomials are supported!\nsp=$sp"
     # want all monomials until n_order and also the constant term
     G = zeros(1, n_order + 1)
 
