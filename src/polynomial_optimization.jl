@@ -84,7 +84,7 @@ returns
     x_opt ([Number]) - positions of extrema of p
     y_opt ([Number]) - values of p at x_opt
 """
-function calculate_critical_points(cs)
+function calculate_critical_points(cs::AbstractVector{<:T}) where T
     # one coefficient -> constant, 2 coeffs -> linear, 3 coeffs -> quadratic, ...
     if length(cs) == 1
         # !!! be careful, optimal value is not only at x_opt
@@ -96,7 +96,8 @@ function calculate_critical_points(cs)
         x_opt = []
     elseif length(cs) == 3
         # Julia is 1-indexed, so p(x) = cs[1] + cs[2]*x + cs[3]*x²
-        x_opt = [-0.5*(cs[2] / cs[3])]
+        # if cs[3] == 0 and cs[2] != 0, then it is unbounded
+        x_opt = cs[3] == 0 ? [] : [-0.5*(cs[2] / cs[3])]
     elseif length(cs) == 4
         # cs[4]*x³ + cs[3]*x² + cs[2]*x + cs[1]
         x_opt = quadratic_roots(3*cs[4], 2*cs[3], cs[2])
@@ -105,6 +106,9 @@ function calculate_critical_points(cs)
     else
         throw(ArgumentError("Polynomial has degree larger than 4! p = $p"))
     end
+
+    # Zygote can't handle broadcast with empty input p.([])
+    length(x_opt) == 0 && return Vector{T}(), Vector{T}()
 
     p = x -> cs' * [x^i for i in 0:length(cs) - 1]
     y_opt = p.(x_opt)
