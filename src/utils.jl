@@ -13,6 +13,19 @@ end
 
 
 """
+Transforms a vector v into a vector of vectors of size vecsize.
+
+example:
+    v = [1,2,3,4], vecsize = 2 -> [[1, 2], [3, 4]]
+"""
+function vec2vecOfVec(v, vecsize)
+    n = length(v)
+    mat = reshape(v, vecsize, Integer(n/vecsize))
+    return collect(eachcol(mat))
+end
+
+
+"""
 Creates a partial identity matrix with n rows.
 All entries are zero except A[i,j] = 1, if idxs[i] = j
 """
