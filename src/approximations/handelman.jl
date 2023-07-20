@@ -364,7 +364,7 @@ Initialize Handelman multipliers, s.t. we get the linear DeepPoly relaxation.
 
 !!! need to use get_lower_polynomial_min() for valid results !!!
 """
-function initialize_CROWNQuad(l, u)
+function initialize_linear(l, u)
     sₗ, tₗ = initialize_linear_lower(l, u)
     sᵤ, tᵤ = initialize_linear_upper(l, u)
 
