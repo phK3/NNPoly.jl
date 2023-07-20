@@ -10,6 +10,7 @@ include("polynomial_optimization.jl")
 include("approximations/chebyshev.jl")
 include("approximations/crown_quadratic.jl")
 include("approximations/handelman.jl")
+include("approximations/shifting.jl")
 
 include("symbolic_truncation/max_min_relaxations.jl")
 include("symbolic_truncation/univariate_monomial_relaxations.jl")
@@ -19,6 +20,9 @@ include("symbolic_truncation/truncation.jl")
 include("reachability/nn_poly_zono.jl")
 include("reachability/poly_interval.jl")
 include("reachability/nn_poly_symb.jl")
+
+include("reachability/diff_poly_interval.jl")
+
 
 
 
