@@ -86,22 +86,30 @@ returns
 """
 function calculate_critical_points(cs::AbstractVector{<:T}) where T
     # one coefficient -> constant, 2 coeffs -> linear, 3 coeffs -> quadratic, ...
-    if length(cs) == 1
+
+    # if terms for last x^n are zero, then it is only n-k degree polynomial!
+    idx = @ignore_derivatives findlast(x -> x .!= 0, cs)
+    # idx can be nothing, if all entries are 0
+    # ĉs = isnothing(idx) ? zeros(T, 1) : cs[1:idx]
+    idx = isnothing(idx) ? 1 : idx
+
+    if idx == 1 #length(cs) == 1
         # !!! be careful, optimal value is not only at x_opt
         # if used in conjunction with calculate_extrema(p, x, lb, ub) that doesn't
         # matter, as the p(lb) and p(ub) have the same value
         x_opt = [0]
-    elseif length(cs) == 2
+    elseif idx == 2 #length(cs) == 2
         # if x has non-zero coefficient, then it is unbounded
         x_opt = []
-    elseif length(cs) == 3
+    elseif idx == 3 # length(cs) == 3
         # Julia is 1-indexed, so p(x) = cs[1] + cs[2]*x + cs[3]*x²
         # if cs[3] == 0 and cs[2] != 0, then it is unbounded
-        x_opt = cs[3] == 0 ? [] : [-0.5*(cs[2] / cs[3])]
-    elseif length(cs) == 4
+        # x_opt = cs[3] == 0 ? [] : [-0.5*(cs[2] / cs[3])]
+        x_opt = [-0.5*(cs[2] / cs[3])]
+    elseif idx == 4 #length(cs) == 4
         # cs[4]*x³ + cs[3]*x² + cs[2]*x + cs[1]
         x_opt = quadratic_roots(3*cs[4], 2*cs[3], cs[2])
-    elseif length(cs) == 5
+    elseif idx == 5 # length(cs) == 5
         x_opt = cardano_roots(4*cs[5], 3*cs[4], 2*cs[3], cs[2], only_real_roots=true)
     else
         throw(ArgumentError("Polynomial has degree larger than 4! p = $p"))
