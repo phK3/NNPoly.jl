@@ -111,7 +111,7 @@ Removes duplicate monomial entries by summing up monomial coefficients for
 """
 function compact(sp::SparsePolynomial)
     # permutation for lexicographically sorting the columns of the exponent matrix
-    p = sortperm(collect(eachcol(sp.E)))
+    p = @ignore_derivatives sortperm(collect(eachcol(sp.E)))
 
     # apply the permutation to the columns
     E = sp.E[:, p]
