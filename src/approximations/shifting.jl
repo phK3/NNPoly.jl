@@ -18,11 +18,11 @@ returns:
     coefficients of the polynomial lower relaxation
 """
 function get_lower_polynomial_shift(lb::N, ub::N, degree::Integer, c::AbstractVector{<:N}) where N <: Number
-    #=if ub <= 0
+    if ub <= 0
         return zeros(degree + 1)
     elseif lb >= 0
         return (1:degree + 1 .== 2)
-    end=#
+    end
 
     # only need x, x², x³, ... coefficient, bias gets adjusted by shift anyways
     ĉ = [0.; c]
@@ -57,11 +57,11 @@ returns:
     coefficients of the polynomial upper relaxation
 """
 function get_upper_polynomial_shift(lb::N, ub::N, degree::Integer, c::AbstractVector{<:N}) where N <: Number
-    #=if ub <= 0
+    if ub <= 0
         return zeros(degree + 1)
     elseif lb >= 0
         return (1:degree + 1 .== 2)
-    end=#
+    end
 
     # only need x, x², x³, ... coefficient, bias gets adjusted by shift anyways
     ĉ = [0.; c]
