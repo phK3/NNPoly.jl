@@ -5,9 +5,11 @@
 #   Niklas Kochdumper, Matthias Althoff, Sparse Polynomial Zonotopes: A Novel
 #       Set Representation for Reachability Analysis
 #       https://mediatum.ub.tum.de/doc/1591469/ijh936tu65rc82gdlzx53oe5f.PolynomialZonotopes_Journal.pdf
+#
+# Changes mostly due to making the code differentiable by Zygote.
 
-struct SparsePolynomial
-    G::Matrix  # generator matrix
+struct SparsePolynomial{N<:Number}
+    G::Matrix{N}  # generator matrix
     E::Matrix{Integer}  # exponent matrix
     ids::Vector{Integer}  # vector holding variable ids
 end
