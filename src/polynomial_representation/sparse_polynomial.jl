@@ -15,17 +15,11 @@ struct SparsePolynomial{N<:Number}
 end
 
 
-function SparsePolynomial(h::Hyperrectangle)
+function SparsePolynomial(h::Hyperrectangle{N}) where N <: Number
     n = dim(h)
-    sp = SparsePolynomial(Float64.(I(n)), I(n), 1:n)
-
-    los = low(h)
-    his = high(h)
-    for i = 1:n
-        # TODO: don't use normalize_variable() here, just directly compute representation (just like for Zonotope)
-        sp = normalize_variable(sp, i, los[i], his[i])
-    end
-
+    G = [h.center I(n) .* h.radius]
+    E = [zeros(Integer, n) I(n)]
+    sp = SparsePolynomial(G, E, Vector{Integer}(1:n))
     return sp
 end
 
@@ -112,7 +106,7 @@ Removes duplicate monomial entries by summing up monomial coefficients for
     monomials with same exponents.
 """
 function compact(sp::SparsePolynomial)
-    # permutation for lexicographically sorting the columns of the exponent matrix
+    #=# permutation for lexicographically sorting the columns of the exponent matrix
     p = @ignore_derivatives sortperm(collect(eachcol(sp.E)))
 
     # apply the permutation to the columns
@@ -138,9 +132,15 @@ function compact(sp::SparsePolynomial)
     # all columns get added up with weight 1
     # S has number of rows equal to number of columns of G -> size(G, 2)
     # S has number of columns equal to number of columns of Ê -> size(Ê, 2)
-    S = sparse(1:size(G,2), col_idxs, 1, size(G, 2), size(Ê, 2))
+    S = sparse(1:size(G,2), col_idxs, 1, size(G, 2), size(Ê, 2))=#
 
-    Ĝ = G * S
+    d = @ignore_derivatives duplicates(eachcol(sp.E))
+    S = @ignore_derivatives compactification_matrix(sp.G, d)
+    unique_idxs = @ignore_derivatives first.(values(d))
+
+    #Ĝ = G * S
+    Ĝ = sp.G * S
+    Ê = sp.E[:, unique_idxs]
 
     # remove zero generators
     # needs to be done *after* summarization, because we generators might cancel

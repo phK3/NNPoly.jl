@@ -40,6 +40,50 @@ function partial_I(n, idxs)
 end
 
 
+"""
+Computes a dictionary where the indices of occurrences in a for each value are
+stored.
+
+I.e. d[val] = [i₁, i₂, ...] with a[iⱼ] = val for each j
+
+args:
+    a - doesn't need to be an array, just needs to define keys(), which is also
+        true for e.g. eachcol()
+"""
+function duplicates(a)
+    inds = keys(a)
+    eldict = Dict{eltype(a), Vector{eltype(inds)}}()
+    for (val, ind) in zip(a, inds)
+        if haskey(eldict, val)
+            # detected other index where val is also stored
+            push!(eldict[val], ind)
+        else
+            # val first occured at ind
+            eldict[val] = [ind]
+        end
+    end
+
+    return eldict
+end
+
+
+"""
+Returns a sparse matrix S, s.t. A * S combines duplicate columns of A by summing them up.
+
+Use e.g. `duplicates(eachcol(A))` to get duplicate_dict
+
+args:
+    A - matrix whose columns need to be deduplicated
+    duplicate_dict - dictionary containing indexes of occurrence for each column in A.
+"""
+function compactification_matrix(A, duplicate_dict)
+    row_idxs = reduce(vcat, values(duplicate_dict))
+    col_idxs = reduce(vcat,[i .* ones(length(vlist)) for (i,vlist) in enumerate(values(duplicate_dict))])
+
+    return sparse(row_idxs, col_idxs, 1, size(A, 2), length(duplicate_dict))
+end
+
+
 ## Plotting Helpers
 
 """
