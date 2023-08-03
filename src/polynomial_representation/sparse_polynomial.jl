@@ -261,9 +261,18 @@ end
 Shifts the starting point of the polynomial by a vector v.
 """
 function translate(sp::SparsePolynomial, v::AbstractVector)
-    n, m = size(sp.E)
-    zn = zeros(Integer, n)
-    return compact(SparsePolynomial([sp.G v], [sp.E zn], sp.ids))
+    const_idx = @ignore_derivatives findfirst(x -> sum(x) == 0, eachcol(sp.E))
+
+    if isnothing(const_idx)
+        Ĝ = [v sp.G]
+        Ê = [zeros(Integer, size(sp.E, 1)) sp.E]
+    else
+        other_idxs = @ignore_derivatives 1:size(sp.G, 2) .!= const_idx
+        Ĝ = [sp.G[:,const_idx] .+ v sp.G[:,other_idxs]]
+        Ê = [sp.E[:,const_idx] sp.E[:,other_idxs]]
+    end
+    
+    return SparsePolynomial(Ĝ, Ê, sp.ids)
 end
 
 
