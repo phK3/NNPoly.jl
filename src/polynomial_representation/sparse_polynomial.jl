@@ -271,7 +271,7 @@ function translate(sp::SparsePolynomial, v::AbstractVector)
         Ĝ = [sp.G[:,const_idx] .+ v sp.G[:,other_idxs]]
         Ê = [sp.E[:,const_idx] sp.E[:,other_idxs]]
     end
-    
+
     return SparsePolynomial(Ĝ, Ê, sp.ids)
 end
 
@@ -533,6 +533,23 @@ function monomial_lb(e)
     return lb
 end
 
+
+"""
+Computes vector of lower bounds for Matrix of exponents.
+"""
+function monomial_lbs(E)
+    one_odd = .~reduce(&, iseven.(E), dims=1)
+    # sum is only zero for a column if all rows are zero
+    consts  = sum(E, dims=1) .== 0
+
+    # all_even cols have lb=0 (so we don't need to add anything for them)
+    # const columns have lb=1 (so we need to add 1 for them)
+    # all other cols have lb=-1 (so we subtract 1 for them)
+    lbs = .- one_odd .+ consts
+    return vec(lbs)
+end
+
+
 """
 Computes component-wise bounds on monomials xᵢⁿxⱼᵐxₖᵒ... of a sparse polynomial
 without a scalar factor.
@@ -540,7 +557,8 @@ Values of the variables are assumed to be within [-1, 1].
 """
 function exponent_bounds(sp::SparsePolynomial)
     n, m = size(sp.E)
-    lbs = [monomial_lb(ej) for ej in eachcol(sp.E)]
+    #lbs = [monomial_lb(ej) for ej in eachcol(sp.E)]
+    lbs = @ignore_derivatives monomial_lbs(sp.E)
     ubs = ones(m)  # ub is just always 1 under our assumptions
 
     return lbs, ubs
