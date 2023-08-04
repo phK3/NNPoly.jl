@@ -76,3 +76,49 @@ function get_upper_polynomial_shift(lb::N, ub::N, degree::Integer, c::AbstractVe
     e₁ = (1:degree + 1 .== 1)
     return ĉ .- l .* e₁
 end
+
+
+function get_lower_polynomial_shift(lb::AbstractVector, ub::AbstractVector, degree, C::AbstractMatrix)
+    n = size(C, 1)
+    Ĉ = [zeros(n) C]
+
+    e₁ = (1:degree + 1 .== 1)
+    e₂ = (1:degree + 1 .== 2)
+
+    crossing = (lb .< 0) .& (ub .> 0)
+    fixed_active = lb .>= 0
+
+    if sum(crossing) > 0
+        uₗ = poly_maximum(Ĉ[crossing,:], lb[crossing], 0)
+        uᵤ = poly_maximum(Ĉ[crossing,:] .- e₂', 0, ub[crossing])
+
+        u = max.(uₗ, uᵤ)
+    else
+        u = 0
+    end
+    #return (Ĉ .- l .* e₁') .* crossing .+ e₂' .* fixed_active
+    return I(n)[:,crossing] * (Ĉ[crossing,:] .- u .* e₁') .+ e₂' .* fixed_active
+end
+
+
+function get_upper_polynomial_shift(lb::AbstractVector, ub::AbstractVector, degree, C::AbstractMatrix)
+    n = size(C, 1)
+    Ĉ = [zeros(n) C]
+
+    e₁ = (1:degree + 1 .== 1)
+    e₂ = (1:degree + 1 .== 2)
+
+    crossing = (lb .< 0) .& (ub .> 0)
+    fixed_active = lb .>= 0
+
+    if sum(crossing) > 0
+        lₗ = poly_minimum(Ĉ[crossing,:], lb[crossing], 0)
+        lᵤ = poly_minimum(Ĉ[crossing,:] .- e₂', 0, ub[crossing])
+
+        l = min.(lₗ, lᵤ)
+    else
+        l = 0
+    end
+    #return (Ĉ .- l .* e₁') .* crossing .+ e₂' .* fixed_active
+    return I(n)[:,crossing] * (Ĉ[crossing,:] .- l .* e₁') .+ e₂' .* fixed_active
+end
