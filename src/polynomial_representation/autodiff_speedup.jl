@@ -182,3 +182,26 @@ function fast_quad_prop(a, b, c, sp::SparsePolynomial, l, u)
 
     return p
 end
+
+
+"""
+Propagates lower and upper bounds through different lower and upper relaxations,
+but ensures that both share the same exponent matrix.
+
+This is achieved by don't truncating them individually and sending them through
+a merged relaxation (although still non-parallel and separate).
+"""
+function quad_prop_common(cₗ, cᵤ, spl, spu, ll, lu, ul, uu)
+    n = size(spl.G, 1)
+    sp_both = SparsePolynomial([spl.G; spu.G], spl.E, spl.ids)
+    ls = [ll; ul]
+    us = [lu; uu]
+    cs = [cₗ; cᵤ]
+
+    ŝp = fast_quad_prop(cs[:,3], cs[:,2], cs[:,1], sp_both, ls, us)
+
+    L̂ = SparsePolynomial(ŝp.G[1:n,:], ŝp.E, ŝp.ids)
+    Û = SparsePolynomial(ŝp.G[n+1:end,:], ŝp.E, ŝp.ids)
+
+    return L̂, Û
+end
