@@ -157,6 +157,92 @@ function calculate_extrema(cs, lb, ub)
 end
 
 
+## Implicit Differentiation for Polynomial optimisation
+
+
+"""
+Calculates x_min, the minimizer of a polynomial p(x) = c₁ + c₂x + c₃x² + ...
+s.t. p(x_min) = y_min, the minimum on interval [l, u].
+"""
+function poly_minimizer(cs::AbstractVector, l::N, u::N) where N<:Number
+    x_opt, y_opt = calculate_critical_points(cs)
+
+    p = x -> cs' * [x^i for i in 0:length(cs) - 1]
+    yₗ = p(l)
+    yᵤ = p(u)
+
+    proj_mask = (l .< x_opt) .& (x_opt .< u)
+    xs = [x_opt[proj_mask]; l; u]
+    ys = [y_opt[proj_mask]; yₗ; yᵤ]
+
+    i = argmin(ys)
+    return return xs[i]
+end
+
+
+function forward_poly_minimizer(C, l, u)
+    # forward method for ImplicitDifferentiation
+    x = poly_minimizer.(eachrow(C), l, u)
+    z = 0  # additional constraints info not needed
+    return x, z
+end
+
+forward_poly_minimizer(x::ComponentArray) = forward_poly_minimizer(x.C, x.l, x.u)
+
+
+function conditions_poly_minimizer(C, l, u, x, z)
+    # conditions for ImplicitDifferentiation
+    # if x really is the minimizer, it is the fixed point of projected gradient descent.
+    n = size(C, 2) - 1
+    # coeffs of derivative
+    dC = C[:,2:end] .* (1:n)'
+    x_powers = reduce(hcat, [x.^k for k in 0:n-1])
+    ∇ₓp = sum(dC .* x_powers, dims=2)
+
+    η = 0.01
+    return x .- clamp.(x .- η * ∇ₓp, l, u)
+end
+
+conditions_poly_minimizer(y::ComponentArray, x, z) = conditions_poly_minimizer(y.C, y.l, y.u, x, z)
+
+implicit_poly_min = ImplicitFunction(forward_poly_minimizer, conditions_poly_minimizer)
+
+
+"""
+Calculates the minimum values yᵢ_min of polynomials pᵢ(x) = C[i,1] + C[i,2]x + C[i,3]x² + ...
+over the intervals [lᵢ, uᵢ].
+
+args:
+    C - Matrix of polynomial coefficients
+    l - vector of lower bounds
+    u - vector of upper bounds
+
+returns:
+    y_min - vector of minimum values
+"""
+function poly_minimum(C::AbstractMatrix, l, u)
+    args = comp_vec_clu(C, l, u)
+    x_opt = (first ∘ implicit_poly_min)(args)
+    x_powers = reduce(hcat, [x_opt.^k for k in 0:size(C,2)-1])
+    y_opt = sum(C .* x_powers, dims=2)
+    return y_opt
+end
+
+"""
+Calculates the maximum values yᵢ_max of polynomials pᵢ(x) = C[i,1] + C[i,2]x + C[i,3]x² + ...
+over the intervals [lᵢ, uᵢ].
+
+args:
+    C - Matrix of polynomial coefficients
+    l - vector of lower bounds
+    u - vector of upper bounds
+
+returns:
+    y_max - vector of maximum values
+"""
+poly_maximum(C, l, u) = .-poly_minimum(.-C, l, u)
+
+
 """
 Computes an upper bound for the maximum of a sparse polynomial in direction d
 by branch and bound on the largest generator up to a certain number of steps.
