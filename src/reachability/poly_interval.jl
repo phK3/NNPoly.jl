@@ -32,6 +32,16 @@ function interval_map(W⁻, W⁺, L, U, b)
 end
 
 
+function interval_map_common(W⁻, W⁺, L::SparsePolynomial, U::SparsePolynomial, b)
+    @assert L.E == U.E "Exponent matrices must be equal for common interval_map!"
+    Gₗ = W⁻ * U.G .+ W⁺ * L.G
+    Gᵤ = W⁻ * L.G .+ W⁺ * U.G
+    L̂ = SparsePolynomial(Gₗ, L.E, L.ids)
+    Û = SparsePolynomial(Gᵤ, U.E, U.ids)
+    return translate(L̂, b), translate(Û, b)
+end
+
+
 """
 Calculates concrete lower and upper bounds on the PolyInterval iteratively
 splitting the largest generator up to a specified splitting depth.
@@ -74,6 +84,39 @@ end
 
 
 """
+Truncate the **same** n_gens smallest generators across two sparse polynomial by overapproximating
+them with intervals.
+"""
+function truncate_common(lp::SparsePolynomial, up::SparsePolynomial, n_gens::Integer)
+    n_gens <= 0 && return lp, up
+
+    @assert lp.E == up.E "Exponent matrices must be equal for common truncation!"
+
+    l2s = vec(sum(lp.G .^2 .+ up.G .^2, dims=1))
+    idxs = sortperm(l2s)
+
+    E = lp.E[:,idxs[1:n_gens]]
+    if 0 in sum(E, dims=1)
+        n_gens += 1
+    end
+
+    Gₗ = lp.G[:,idxs[1:n_gens]]
+    Gᵤ = up.G[:,idxs[1:n_gens]]
+
+    ll, lu = bounds(SparsePolynomial(Gₗ, E, lp.ids))
+    ul, uu = bounds(SparsePolynomial(Gᵤ, E, up.ids))
+
+    lp_trunc = SparsePolynomial(lp.G[:,idxs[n_gens+1:end]], lp.E[:,idxs[n_gens+1:end]], lp.ids)
+    up_trunc = SparsePolynomial(up.G[:,idxs[n_gens+1:end]], up.E[:,idxs[n_gens+1:end]], up.ids)
+
+    l̂p = translate(lp_trunc, ll)
+    ûp = translate(up_trunc, uu)
+
+    return l̂p, ûp
+end
+
+
+"""
 Truncate the PolyInterval, s.t. only n_gens generators are left.
 """
 function truncate_desired(pint::PolyInterval, n_gens::Integer)
@@ -86,4 +129,17 @@ function truncate_desired(pint::PolyInterval, n_gens::Integer)
     U_low, U_up = truncate_generators(pint.Up, n_del)
 
     return PolyInterval(L_low, U_up)
+end
+
+
+"""
+Truncate the PolyInterval, s.t. only n_gens generators are left.
+"""
+function truncate_desired_common(pint::PolyInterval, n_gens::Integer)
+    n, m = size(pint.Low.G)
+    n_del = m - n_gens
+
+    L, U = truncate_common(pint.Low, pint.Up, n_del)
+
+    return PolyInterval(L, U)
 end
