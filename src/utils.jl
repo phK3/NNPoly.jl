@@ -84,6 +84,27 @@ function compactification_matrix(A, duplicate_dict)
 end
 
 
+## Differentiable ComponentVector
+# after https://github.com/mohamed82008/DifferentiableFactorizations.jl/blob/main/src/DifferentiableFactorizations.jl#L68
+
+"""
+Constructs a ComponentVector with components named C, l and u
+"""
+comp_vec_clu(C, l, u) = ComponentVector(C=C, l=l, u=u)
+
+function ChainRulesCore.rrule(::typeof(comp_vec_clu), C, l, u)
+    out = comp_vec_clu(C, l, u)
+    T = typeof(out)
+
+    function comp_vec_clu_pullback(Δ)
+        _Δ = convert(T, Δ)
+        return NoTangent(), _Δ.C, _Δ.l, _Δ.u
+    end
+
+    return out, comp_vec_clu_pullback
+end
+
+
 ## Plotting Helpers
 
 """
