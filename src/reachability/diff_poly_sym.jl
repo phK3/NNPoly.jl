@@ -142,7 +142,8 @@ function initialize_params(solver::DiffNNPolySym, net, degree, s::DiffPolyInterv
     dsolver = DiffNNPolySym(truncation_terms=solver.truncation_terms,
                                 separate_relaxations=solver.separate_relaxations,
                                 relaxations=solver.relaxations, splitting_depth=solver.splitting_depth,
-                                init=true)
+                                init=true, save_bounds=solver.save_bounds,
+                                common_generators=solver.common_generators)
     α0 = initialize_params(net, degree, method=:zero)
     αs = vec2propagation(net, degree, α0)
 
