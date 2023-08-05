@@ -95,11 +95,12 @@ function truncate_common(lp::SparsePolynomial, up::SparsePolynomial, n_gens::Int
     l2s = vec(sum(lp.G .^2 .+ up.G .^2, dims=1))
     idxs = sortperm(l2s)
 
-    E = lp.E[:,idxs[1:n_gens]]
+    E = @view lp.E[:,idxs[1:n_gens]]
     if 0 in sum(E, dims=1)
         n_gens += 1
     end
 
+    E = lp.E[:, idxs[1:n_gens]]
     Gₗ = lp.G[:,idxs[1:n_gens]]
     Gᵤ = up.G[:,idxs[1:n_gens]]
 
