@@ -38,11 +38,16 @@ kwargs:
     n_steps - maximum number of gradient steps
     verbosity - if > 1 also print step-length and cosine similarity of steps
     gradient_tol - if ||∇f|| < gradient_tol, stop optimisation
+    patience - early stopping if the objective didn't improve in the last patience steps
 """
-function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradient_tol=1e-5)
+function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradient_tol=1e-5,
+                  patience=50)
     x = copy(x₀)
     opt_state = Optimisers.setup(opt, x)
 
+    x_best = x
+    y_best = Inf
+    steps_no_improvement = 0
     csim = 1.
     last_update = zero(x₀)
     y_hist = Float64[]
@@ -57,12 +62,23 @@ function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradien
         ∇f = isnothing(g[1]) ? zeros(size(x)) : g[1]
 
         grad_norm = norm(∇f)
-        
+
         push!(y_hist, y)
         push!(g_hist, grad_norm)
 
+        if y < y_best
+            y_best = y
+            x_best = copy(x)
+            steps_no_improvement = 0
+        else
+            steps_no_improvement += 1
+        end
+
         if grad_norm < gradient_tol
             println("Optimisation converged! ||∇f|| = ", grad_norm, " < ", gradient_tol)
+            break
+        elseif steps_no_improvement > patience
+            println("No improvement over the last ", patience, " iterations. Stopping early.")
             break
         end
 
@@ -83,5 +99,5 @@ function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradien
         end
     end
 
-    return x, y_hist, g_hist, d_hist, csims
+    return x_best, y_hist, g_hist, d_hist, csims
 end
