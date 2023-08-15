@@ -153,26 +153,18 @@ function initialize_params(solver::DiffNNPolySym, net, degree, s::DiffPolyInterv
 end
 
 
+"""
+Initialize the symbolic domain corresponding to the given solver with the respective input set.
+"""
+function initialize_symbolic_domain(solver::DiffNNPolySym, net::NV.NetworkNegPosIdx, input::AbstractHyperrectangle)
+    return DiffPolyInterval(net, input)(net, input)
+end
+
+
 
 ## Propagation through Network
 #  We need separate propagate() method that takes in a vector of α instead of
 #  one vector per layer.
-
-function forward_layer(solver::DiffNNPolySym, L::NV.LayerNegPosIdx, input, α)
-    ŝ = forward_linear(solver, L, input)
-    s = forward_act(solver, L, ŝ, α)
-    return s
-end
-
-
-function NV.forward_network(solver::DiffNNPolySym, net::NV.NetworkNegPosIdx, input, αs)
-    s = input
-    for (L, α) in zip(net.layers, αs)
-        s = forward_layer(solver, L, s, α)
-    end
-
-    return s
-end
 
 # here αs is a vector! (in contrast to forward_network)
 function propagate(solver::DiffNNPolySym, net::NV.NetworkNegPosIdx, input, α; printing=false)
@@ -188,6 +180,12 @@ function propagate(solver::DiffNNPolySym, net::NV.NetworkNegPosIdx, input, α; p
     # for now, minimize range between all outputs
     loss = sum(uu - ll)
     return loss
+end
+
+
+function propagate(solver::DiffNNPolySym, net::NV.NetworkNegPosIdx, input::AbstractHyperrectangle, α; printing=false)
+    s = DiffPolyInterval(net, input)
+    return propagate(solver, net, s, α, printing=printing)
 end
 
 
