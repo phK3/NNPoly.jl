@@ -86,6 +86,7 @@ kwargs:
     concrete_sample - sampling for concrete solutions for DPNeurifyFV
     eager - use eager Bounds checking in ZoPE
     only_pattern - only look at properties whose network_path starts with only_pattern
+    timeout - timeout **per instance** in seconds
 
 returns:
     counterexample - or nothing, if no counterexample could be found
@@ -93,7 +94,7 @@ returns:
     result - (String) SAT, UNSAT or inconclusive
 """
 function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_freq=50, n_steps=5000,
-                       only_pattern=nothing, save_history=false)
+                       only_pattern=nothing, save_history=false, timeout=60.)
     f = CSV.File(string(dir, "/instances.csv"), header=false)
 
     n = length(f)
@@ -144,7 +145,7 @@ function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_f
         y_start = propagate(solver, net_npi, s, α0; printing=true)
 
         println("--- optimisation ---")
-        time = @elapsed α₁, y_hist, g_hist, d_hist, csims = optimise_bounds(solver, net_npi, input_set, print_freq=print_freq, n_steps=n_steps)
+        time = @elapsed α₁, y_hist, g_hist, d_hist, csims = optimise_bounds(solver, net_npi, input_set, print_freq=print_freq, n_steps=n_steps, timeout=timeout)
 
         println("\ttime = ", time)
         println("--- optimised α ---")

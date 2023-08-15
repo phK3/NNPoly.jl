@@ -144,7 +144,7 @@ end
 
 
 function optimise_bounds(solver::AlphaNeurify, net::NV.NetworkNegPosIdx, input_set; opt=nothing,
-                         print_freq=50, n_steps=100)
+                         print_freq=50, n_steps=100, patience=50, timeout=60)
     opt = isnothing(opt) ? OptimiserChain(Adam(), Projection(0., 1.)) : opt
     s = init_symbolic_interval_diff(net, input_set)
 
@@ -152,5 +152,6 @@ function optimise_bounds(solver::AlphaNeurify, net::NV.NetworkNegPosIdx, input_s
 
     optfun = α -> propagate(solver, net, s, α)
 
-    α, y_hist, g_hist, d_hist, csims = optimise(optfun, opt, α0, print_freq=print_freq, n_steps=n_steps)
+    α, y_hist, g_hist, d_hist, csims = optimise(optfun, opt, α0, print_freq=print_freq, n_steps=n_steps,
+                                                patience=patience, timeout=timeout)
 end

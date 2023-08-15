@@ -41,7 +41,9 @@ kwargs:
     patience - early stopping if the objective didn't improve in the last patience steps
 """
 function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradient_tol=1e-5,
-                  patience=50)
+                  patience=50, timeout=60.)
+    t_start = time()
+
     x = copy(x₀)
     opt_state = Optimisers.setup(opt, x)
 
@@ -74,13 +76,19 @@ function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradien
             steps_no_improvement += 1
         end
 
+        t_now = time()
+        elapsed_time = t_now - t_start
         if grad_norm < gradient_tol
             println("Optimisation converged! ||∇f|| = ", grad_norm, " < ", gradient_tol)
             break
         elseif steps_no_improvement > patience
             println("No improvement over the last ", patience, " iterations. Stopping early.")
             break
+        elseif elapsed_time >= timeout
+            println("Timeout reached (", elapsed_time, " elapsed)")
+            break
         end
+
 
         Optimisers.update!(opt_state, x, ∇f)
 
