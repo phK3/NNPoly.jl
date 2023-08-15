@@ -1,0 +1,30 @@
+Precompiled vnnlib file found at ../../vnncomp2022_benchmarks/benchmarks/acasxu/vnnlib/prop_3.vnnlib.compiled
+Loading onnx ../../vnncomp2022_benchmarks/benchmarks/acasxu/onnx/ACASXU_run2a_5_7_batch_2000.onnx wih quirks {}
+Traceback (most recent call last):
+  File "incomplete_verification.py", line 143, in <module>
+    run_acas(n_instances=n_instances, n_steps=n_steps)
+  File "incomplete_verification.py", line 106, in run_acas
+    return run_experiment(benchmark_dir, [1,1,1,5], result_file, n_steps=n_steps, patience=patience, n_instances=n_instances)
+  File "incomplete_verification.py", line 95, in run_experiment
+    y, t = run_vnnlib(onnx_file, vnnlib_file, input_shape, printing=True, n_steps=n_steps, patience=patience)
+  File "incomplete_verification.py", line 50, in run_vnnlib
+    lb, ub = model.compute_bounds(x=(my_input,), method="alpha-CROWN")
+  File "/home/philipp/VerifyNN/alpha-beta-CROWN/complete_verifier/auto_LiRPA/bound_general.py", line 1170, in compute_bounds
+    cutter=cutter, decision_thresh=decision_thresh)
+  File "/home/philipp/VerifyNN/alpha-beta-CROWN/complete_verifier/auto_LiRPA/optimized_bounds.py", line 592, in get_optimized_bounds
+    update_mask=preserve_mask)
+  File "/home/philipp/VerifyNN/alpha-beta-CROWN/complete_verifier/auto_LiRPA/bound_general.py", line 1321, in compute_bounds
+    self.check_prior_bounds(final)
+  File "/home/philipp/VerifyNN/alpha-beta-CROWN/complete_verifier/auto_LiRPA/bound_general.py", line 849, in check_prior_bounds
+    self.check_prior_bounds(n)
+  File "/home/philipp/VerifyNN/alpha-beta-CROWN/complete_verifier/auto_LiRPA/bound_general.py", line 857, in check_prior_bounds
+    node.inputs[i], prior_checked=True)
+  File "/home/philipp/VerifyNN/alpha-beta-CROWN/complete_verifier/auto_LiRPA/bound_general.py", line 959, in compute_intermediate_bounds
+    unstable_size=unstable_size)
+  File "/home/philipp/VerifyNN/alpha-beta-CROWN/complete_verifier/auto_LiRPA/backward_bound.py", line 146, in backward_general
+    beta_for_intermediate_layers=self.intermediate_constr is not None)
+  File "/home/philipp/VerifyNN/alpha-beta-CROWN/complete_verifier/auto_LiRPA/operators/activation.py", line 671, in bound_backward
+    self._backward_relaxation(last_lA, last_uA, x, start_node, unstable_idx)
+  File "/home/philipp/VerifyNN/alpha-beta-CROWN/complete_verifier/auto_LiRPA/operators/activation.py", line 597, in _backward_relaxation
+    assert self.alpha_lookup_idx[start_node.name] is None
+
