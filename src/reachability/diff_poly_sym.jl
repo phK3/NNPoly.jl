@@ -192,7 +192,7 @@ end
 ## optimisation
 
 function optimise_bounds(solver::DiffNNPolySym, net::NV.NetworkNegPosIdx, input_set; clip_norm=10., opt=nothing,
-                         print_freq=50, n_steps=100)
+                         print_freq=50, n_steps=100, patience=50, timeout=60.)
     opt = isnothing(opt) ? OptimiserChain(ClipNorm(clip_norm), Adam()) : opt
     s = DiffPolyInterval(net, input_set)
 
@@ -203,5 +203,6 @@ function optimise_bounds(solver::DiffNNPolySym, net::NV.NetworkNegPosIdx, input_
     # TODO: maybe check num_crossing after optimisation, especially if gradient was 0
     # TODO: maybe store intermediate bounds also for output layer and return min/max of that
 
-    α, y_hist, g_hist, d_hist, csims = optimise(optfun, opt, α0, print_freq=print_freq, n_steps=n_steps)
+    α, y_hist, g_hist, d_hist, csims = optimise(optfun, opt, α0, print_freq=print_freq, n_steps=n_steps,
+                                                patience=patience, timeout=timeout)
 end
