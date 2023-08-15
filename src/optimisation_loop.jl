@@ -1,4 +1,30 @@
 
+
+"""
+Projects x to be within [l, u]
+Used for projected gradient descent:
+    OptimiserChain()
+"""
+struct Projection{T} <: Optimisers.AbstractRule
+    l::T
+    u::T
+end
+
+
+function Optimisers.apply!(o::Projection, state, x, x̄)
+    # in the next iteration we have x = x - x̄
+    # want x - x̄ ≥ l <--> x̄ ≤ x - l
+    # want x - x̄ ≤ u <--> x̄ ≥ x - u
+    newx̄ = clamp.(x̄, x .- o.u, x .- o.l)
+    # state is not altered
+    return state, newx̄
+end
+
+# Projection doesn't need any state
+Optimisers.init(o::Projection, x::AbstractArray) = nothing
+
+
+
 """
 Gradient-based optimisation procedure for a differentiable function f.
 
