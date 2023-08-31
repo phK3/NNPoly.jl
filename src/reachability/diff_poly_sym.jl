@@ -157,7 +157,7 @@ end
 Initialize the symbolic domain corresponding to the given solver with the respective input set.
 """
 function initialize_symbolic_domain(solver::DiffNNPolySym, net::NV.NetworkNegPosIdx, input::AbstractHyperrectangle)
-    return DiffPolyInterval(net, input)(net, input)
+    return DiffPolyInterval(net, input)
 end
 
 
