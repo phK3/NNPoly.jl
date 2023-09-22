@@ -226,6 +226,15 @@ end
 
 
 """
+Initialises symbolic domain for αCROWN.
+But since αCROWN's input is just a Hyperrectangle this just does nothing.
+"""
+function initialize_symbolic_domain(solver::aCROWN, net::NV.NetworkNegPosIdx, input::AbstractHyperrectangle)
+    return input
+end
+
+
+"""
 Perform symbolic bounds propagation via backsubstitution for the given network and return
 the corresponding loss value.
 
@@ -236,7 +245,7 @@ kwargs:
     lbs - (defaults to nothing) possible to use precomputed bounds
     ubs - (defaults to nothing) possible to use precomputed bounds
 """
-function propagate(solver::aCROWN, net::NV.Network, input::Hyperrectangle, α; printing=false, lbs=nothing, ubs=nothing)
+function propagate(solver::aCROWN, net::NN, input::Hyperrectangle, α; printing=false, lbs=nothing, ubs=nothing) where NN<:Union{NV.Network, NV.NetworkNegPosIdx}
     if solver.separate_alpha
         @assert length(α) % 2 == 0 "If solver.separate_alpha, then only even lengths of α are allowed."
         half = Int(0.5*length(α))
@@ -259,8 +268,8 @@ function propagate(solver::aCROWN, net::NV.Network, input::Hyperrectangle, α; p
 end
 
 
-function optimise_bounds(solver::aCROWN, net::NV.Network, input_set::Hyperrectangle; opt=nothing,
-                         print_freq=50, n_steps=100, patience=50, timeout=60, print_result=false)
+function optimise_bounds(solver::aCROWN, net::NN, input_set::Hyperrectangle; opt=nothing,
+                         print_freq=50, n_steps=100, patience=50, timeout=60, print_result=false) where NN<:Union{NV.Network, NV.NetworkNegPosIdx}
     opt = isnothing(opt) ? OptimiserChain(Adam(), Projection(0., 1.)) : opt
 
     α0, lbs0, ubs0 = initialize_params(solver, net, 1, input_set)
