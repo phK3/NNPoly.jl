@@ -1,20 +1,38 @@
 
+@with_kw struct PolyCROWN <: NV.Solver 
+    separate_alpha = true
+    use_tightened_bounds = true
+    # number of layers for polynomial relaxation
+    poly_layers = 1
+    # solver for polynomial part
+    poly_solver = DiffNNPolySym()
+    # solver for linear part
+    lin_solver = aCROWN()
+end
+
+
+function PolyCROWN(psolver ; separate_alpha=true, use_tightened_bounds=true, initialize=false, poly_layers=1)
+    return PolyCROWN(separate_alpha, use_tightened_bounds, psolver, poly_layers, 
+                     aCROWN(separate_alpha=separate_alpha, use_tightened_bounds=use_tightened_bounds, initialize=initialize))
+end
+
+
+
+
 """
 Perform symbolic bounds propagation using forward propagation of polynomials for the first layers of the network and
 linear backsubstitution for the later layers.
 
 args:
-    solver - solver for linear backsubstitution of later layers
-    psolver - solver for polynomial forward propagation of earlier layers
+    solver - solver to use
     net_poly - network consisting of earlier layers
     net - network consisting of later layers
     input_set - DiffPolyInterval for net_poly
     αs_poly - parameters for polynomial relaxation (if separate_alpha, then even length)
     αs - parameters for linear relaxation (if separate_alpha, then even length)
 """
-function NV.forward_network(solver::aCROWN, psolver::DiffNNPolySym, net_poly::NN, net::NN, 
-                            input_set::DiffPolyInterval{N}, αs_poly, αs; from_layer=1, lbs=nothing, ubs=nothing,
-                            printing=false) where {NN<:Union{NV.Network, NV.NetworkNegPosIdx}, N<:Number}
+function NV.forward_network(solver::PolyCROWN, net_poly::NN, net::NN, input_set::DiffPolyInterval{N}, αs_poly, αs; 
+                            from_layer=1, lbs=nothing, ubs=nothing, printing=false) where {NN<:Union{NV.Network, NV.NetworkNegPosIdx}, N<:Number}
     # don't store bounds for polynomial layers in lbs/best_lbs, they are already
     # stored in the DiffPolyInterval
     nₗ = length(net_poly.layers)
@@ -22,6 +40,9 @@ function NV.forward_network(solver::aCROWN, psolver::DiffNNPolySym, net_poly::NN
     best_ubs = isnothing(ubs) ? Vector{Vector{N}}() : ubs[nₗ+1:end]
     lbs = Vector{Vector{N}}()
     ubs = Vector{Vector{N}}()
+
+    psolver = solver.poly_solver
+    lsolver = solver.lin_solver
     
     if solver.separate_alpha
         half = Int(floor(0.5*length(αs)))
@@ -61,8 +82,8 @@ function NV.forward_network(solver::aCROWN, psolver::DiffNNPolySym, net_poly::NN
 
         nn_part = NN(net.layers[from_layer:i])
         
-        Zl = backward_network(solver, nn_part, lbs[1:i-1], ubs[1:i-1], input_set, αsₗ[1:i])
-        Zu = backward_network(solver, nn_part, lbs[1:i-1], ubs[1:i-1], input_set, αsᵤ[1:i], upper=true)
+        Zl = backward_network(lsolver, nn_part, lbs[1:i-1], ubs[1:i-1], input_set, αsₗ[1:i])
+        Zu = backward_network(lsolver, nn_part, lbs[1:i-1], ubs[1:i-1], input_set, αsᵤ[1:i], upper=true)
         
         l_poly = exact_addition(affine_map(max.(0, Zl.Λ), Lₗ, Zl.γ), linear_map(min.(0, Zl.Λ), Uₗ))
         u_poly = exact_addition(affine_map(max.(0, Zu.Λ), Uᵤ, Zu.γ), linear_map(min.(0, Zu.Λ), Lᵤ))
@@ -117,7 +138,8 @@ returns:
     lbs - vector of vector of concrete lower bounds obtained during initialisation
     ubs - vector of vector of concrete upper bounds obtained during initialisation
 """
-function initialize_params(solver::aCROWN, psolver::DiffNNPolySym, net_poly, net, degree::N, input::DiffPolyInterval) where N <: Number
+function initialize_params(solver::PolyCROWN, net_poly, net, degree::N, input::DiffPolyInterval) where N <: Number
+    psolver = solver.poly_solver
     α_poly = initialize_params(psolver, net_poly, degree, input)
     αps = vec2propagation(net_poly, degree, α_poly)
     
@@ -125,15 +147,15 @@ function initialize_params(solver::aCROWN, psolver::DiffNNPolySym, net_poly, net
     α = zeros(n_neurons)
     αs = vec2propagation(net, α)
     # for initialization separate_alpha isn't needed
-    isolver = aCROWN(initialize=true, separate_alpha=false)
+    isolver = PolyCROWN(psolver, initialize=true, separate_alpha=false)
     
-    ŝ = NV.forward_network(isolver, psolver, net_poly, net, input, αps, αs);
+    ŝ = NV.forward_network(isolver, net_poly, net, input, αps, αs);
         
     return α_poly, reduce(vcat, vec.(αs)), ŝ.lbs, ŝ.ubs
 end
 
 
-function propagate(solver::aCROWN, psolver::DiffNNPolySym, net_poly::NV.NetworkNegPosIdx, 
+function propagate(solver::PolyCROWN, net_poly::NV.NetworkNegPosIdx, 
                     net::NV.NetworkNegPosIdx, input::DiffPolyInterval, α_poly, α; printing=false, 
                     lbs=nothing, ubs=nothing)
     if solver.separate_alpha
@@ -148,7 +170,7 @@ function propagate(solver::aCROWN, psolver::DiffNNPolySym, net_poly::NV.NetworkN
         αps = vec2propagation(net_poly, 2, α_poly)
     end
 
-    s = NV.forward_network(solver, psolver, net_poly, net, input, αps, αs, lbs=lbs, ubs=ubs);
+    s = NV.forward_network(solver, net_poly, net, input, αps, αs, lbs=lbs, ubs=ubs);
 
     ll, lu = bounds(s.poly_interval.Low)
     ul, uu = bounds(s.poly_interval.Up)
@@ -162,15 +184,33 @@ function propagate(solver::aCROWN, psolver::DiffNNPolySym, net_poly::NV.NetworkN
 end
 
 
-function optimise_bounds(solver::aCROWN, psolver::DiffNNPolySym, net::NV.NetworkNegPosIdx, input_set::Hyperrectangle; opt=nothing,
+function propagate(solver::PolyCROWN, net::NV.NetworkNegPosIdx, input::DiffPolyInterval, α; printing=false, lbs=nothing, ubs=nothing)
+    # dummy method for compatibility with vnnlib.jl
+    net_poly = NV.NetworkNegPosIdx(net.layers[1:solver.poly_layers])
+    net = NV.NetworkNegPosIdx(net.layers[solver.poly_layers+1:end])
+
+    n_neurons_poly = sum(length(l.bias) for l in net_poly.layers)
+
+    degree = 2
+    nₚ = solver.separate_alpha ? 2*2*degree*n_neurons_poly : 2*degree*n_neurons_poly
+
+    αp = α[1:nₚ]
+    αl = α[nₚ+1:end]
+    return propagate(solver, net_poly, net, input, αp, αl, printing=printing, lbs=lbs, ubs=ubs)
+end
+
+
+function optimise_bounds(solver::PolyCROWN, net::NV.NetworkNegPosIdx, input_set::Hyperrectangle; opt=nothing,
                         print_freq=50, n_steps=100, patience=50, timeout=60, print_result=false, poly_layers=1)
+    psolver = solver.poly_solver
+    
     opt = isnothing(opt) ? OptimiserChain(Adam()) : opt
 
     net_poly = NV.NetworkNegPosIdx(net.layers[1:poly_layers])
     net = NV.NetworkNegPosIdx(net.layers[poly_layers+1:end])
     s = initialize_symbolic_domain(psolver, net_poly, input_set)
 
-    α_poly, α_lin, lbs0, ubs0 = initialize_params(solver, psolver, net_poly, net, 2, s)
+    α_poly, α_lin, lbs0, ubs0 = initialize_params(solver, net_poly, net, 2, s)
     α_poly = solver.separate_alpha ? [α_poly; α_poly] : α_poly
     α_lin = solver.separate_alpha ? [α_lin; α_lin] : α_lin
     α0 = [α_poly; α_lin]
@@ -180,16 +220,16 @@ function optimise_bounds(solver::aCROWN, psolver::DiffNNPolySym, net::NV.Network
 
     if solver.use_tightened_bounds
         optfun = α -> begin
-        αp = α[1:nₚ]
-        αl = α[nₚ+1:end]
-        # lbs0, ubs0 will be overwritten with tighter bounds during the optimization process
-        propagate(solver, psolver, net_poly, net, s, αp, αl, lbs=lbs0, ubs=ubs0)
+            αp = α[1:nₚ]
+            αl = α[nₚ+1:end]
+            # lbs0, ubs0 will be overwritten with tighter bounds during the optimization process
+            propagate(solver, net_poly, net, s, αp, αl, lbs=lbs0, ubs=ubs0)
         end
     else
         optfun = α -> begin
-        αp = α[1:nₚ]
-        αl = α[nₚ+1:end]
-        propagate(solver, psolver, net_poly, net, s, αp, αl)
+            αp = α[1:nₚ]
+            αl = α[nₚ+1:end]
+            propagate(solver, net_poly, net, s, αp, αl)
         end
     end
 
@@ -199,7 +239,7 @@ function optimise_bounds(solver::aCROWN, psolver::DiffNNPolySym, net::NV.Network
     if print_result
         αp = α[1:nₚ]
         αl = α[nₚ+1:end]
-        propagate(solver, psolver, net_poly, net, s, αp, αl, lbs=lbs0, ubs=ubs0, printing=true)
+        propagate(solver, net_poly, net, s, αp, αl, lbs=lbs0, ubs=ubs0, printing=true)
     end
 
     return α, y_hist, g_hist, d_hist, csims
