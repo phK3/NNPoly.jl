@@ -32,6 +32,7 @@ include("reachability/poly_interval.jl")
 include("reachability/nn_poly_symb.jl")
 include("reachability/symbolic_interval_diff.jl")
 include("reachability/alpha_neurify.jl")
+include("reachability/alpha_crown.jl")
 
 include("reachability/diff_poly_interval.jl")
 include("reachability/diff_poly_sym.jl")
