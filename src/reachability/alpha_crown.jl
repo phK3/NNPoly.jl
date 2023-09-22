@@ -83,7 +83,7 @@ function backward_act(solver::aCROWN, L::Union{NV.Layer{NV.ReLU},NV.LayerNegPosI
     Λ = flip * (Λ⁻ .* aᵤ' + Λ⁺ .* aₗ')
     γ = flip * (Λ⁻ * bᵤ) .+ input.γ
 
-    return Dev.SymbolicBound(Λ, γ)
+    return SymbolicBound(Λ, γ)
 end
 
 
@@ -109,7 +109,7 @@ kwargs:
 """
 function backward_network(solver, net, lbs, ubs, input, αs; upper=false, down_to_layer=1)
     # assumes that last layer is linear!
-    Z = Dev.SymbolicBound(I, 0.)
+    Z = SymbolicBound(I, 0.)
     Z = backward_linear(solver, net.layers[end], Z)
     for i in reverse(down_to_layer:length(net.layers)-1)
         layer = net.layers[i]
