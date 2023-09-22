@@ -36,6 +36,7 @@ include("reachability/alpha_crown.jl")
 
 include("reachability/diff_poly_interval.jl")
 include("reachability/diff_poly_sym.jl")
+include("reachability/poly_crown.jl")
 
 include("vnnlib.jl")
 
