@@ -12,7 +12,7 @@ end
 
 
 function PolyCROWN(psolver ; separate_alpha=true, use_tightened_bounds=true, initialize=false, poly_layers=1)
-    return PolyCROWN(separate_alpha, use_tightened_bounds, psolver, poly_layers, 
+    return PolyCROWN(separate_alpha, use_tightened_bounds, poly_layers, psolver, 
                      aCROWN(separate_alpha=separate_alpha, use_tightened_bounds=use_tightened_bounds, initialize=initialize))
 end
 
@@ -120,6 +120,13 @@ function NV.forward_network(solver::PolyCROWN, net_poly::NN, net::NN, input_set:
 end
 
 
+function initialize_symbolic_domain(solver::PolyCROWN, net::NV.NetworkNegPosIdx, input::AbstractHyperrectangle)
+    # for compatibility with vnnlib.jl
+    net_poly = NV.NetworkNegPosIdx(net.layers[1:solver.poly_layers])
+    return initialize_symbolic_domain(solver.poly_solver, net_poly, input)
+end
+
+
 """
 Initialises parameters for the polynomial relaxations for the first layers of the network
 and the slopes of the linear relaxations for the later layers of the network.
@@ -150,8 +157,30 @@ function initialize_params(solver::PolyCROWN, net_poly, net, degree::N, input::D
     isolver = PolyCROWN(psolver, initialize=true, separate_alpha=false)
     
     ŝ = NV.forward_network(isolver, net_poly, net, input, αps, αs);
+
+    α_lin = reduce(vcat, vec.(αs))
+    α_poly = solver.separate_alpha ? [α_poly; α_poly] : α_poly
+    α_lin = solver.separate_alpha ? [α_lin; α_lin] : α_lin
         
-    return α_poly, reduce(vcat, vec.(αs)), ŝ.lbs, ŝ.ubs
+    return α_poly, α_lin, ŝ.lbs, ŝ.ubs
+end
+
+
+function initialize_params(solver::PolyCROWN, net::NV.NetworkNegPosIdx, degree::N, input::DiffPolyInterval; return_bounds=false) where N <: Number
+    #for compatibility with vnnlib.jl
+    net_poly = NV.NetworkNegPosIdx(net.layers[1:solver.poly_layers])
+    net = NV.NetworkNegPosIdx(net.layers[solver.poly_layers+1:end])
+
+    α_poly, α_lin, lbs, ubs = initialize_params(solver, net_poly, net, degree, input)
+    α_poly = solver.separate_alpha ? [α_poly; α_poly] : α_poly
+    α_lin = solver.separate_alpha ? [α_lin; α_lin] : α_lin
+    α0 = [α_poly; α_lin]
+
+    if return_bounds
+        return α0, lbs, ubs
+    else
+        return α0
+    end
 end
 
 
@@ -211,8 +240,6 @@ function optimise_bounds(solver::PolyCROWN, net::NV.NetworkNegPosIdx, input_set:
     s = initialize_symbolic_domain(psolver, net_poly, input_set)
 
     α_poly, α_lin, lbs0, ubs0 = initialize_params(solver, net_poly, net, 2, s)
-    α_poly = solver.separate_alpha ? [α_poly; α_poly] : α_poly
-    α_lin = solver.separate_alpha ? [α_lin; α_lin] : α_lin
     α0 = [α_poly; α_lin]
 
     nₚ = length(α_poly)
