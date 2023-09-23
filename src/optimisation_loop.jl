@@ -1,4 +1,27 @@
 
+@with_kw mutable struct OptimisationParams
+    n_steps=100
+    # timeout in seconds
+    timeout=60.
+    # number of iterations w/o improvement before early stopping
+    patience=50
+    gradient_tol=1e-5
+    # console output
+    verbosity=1
+    print_freq=50
+    # save history of loss values
+    save_ys = false
+    # save history of gradient norms
+    save_gs = false
+    # saving history of times for plotting and analysis
+    save_times = false
+    # saving history of distance between iterates
+    save_dist = false
+    # save history of cosine similarity between iterates
+    save_cosine_similarity = false
+end
+
+
 
 """
 Projects x to be within [l, u]
@@ -40,8 +63,7 @@ kwargs:
     gradient_tol - if ||∇f|| < gradient_tol, stop optimisation
     patience - early stopping if the objective didn't improve in the last patience steps
 """
-function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradient_tol=1e-5,
-                  patience=50, timeout=60.)
+function optimise(f, opt, x₀; params=OptimisationParams())
     t_start = time()
 
     x = copy(x₀)
@@ -53,11 +75,12 @@ function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradien
     csim = 1.
     last_update = zero(x₀)
     y_hist = Float64[]
+    t_hist = Float64[]
     g_hist = Float64[]
     d_hist = Float64[]
-    csims = [csim]
+    csims = params.save_cosine_similarity ? [csim] : Float64[]
 
-    for i in 1:n_steps
+    for i in 1:params.n_steps
         last_x = copy(x)
         y, g = withgradient(f, x)
         # Zygote treats nothing as zero
@@ -65,8 +88,8 @@ function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradien
 
         grad_norm = norm(∇f)
 
-        push!(y_hist, y)
-        push!(g_hist, grad_norm)
+        params.save_ys && push!(y_hist, y)
+        params.save_gs && push!(g_hist, grad_norm)
 
         if y < y_best
             y_best = y
@@ -78,13 +101,14 @@ function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradien
 
         t_now = time()
         elapsed_time = t_now - t_start
-        if grad_norm < gradient_tol
-            println("Optimisation converged! ||∇f|| = ", grad_norm, " < ", gradient_tol)
+        params.save_times && push!(t_hist, elapsed_time)
+        if grad_norm < params.gradient_tol
+            println("Optimisation converged! ||∇f|| = ", grad_norm, " < ", params.gradient_tol)
             break
-        elseif steps_no_improvement > patience
-            println("No improvement over the last ", patience, " iterations. Stopping early.")
+        elseif steps_no_improvement > params.patience
+            println("No improvement over the last ", params.patience, " iterations. Stopping early.")
             break
-        elseif elapsed_time >= timeout
+        elseif elapsed_time >= params.timeout
             println("Timeout reached (", elapsed_time, " elapsed)")
             break
         end
@@ -92,20 +116,20 @@ function optimise(f, opt, x₀; print_freq=50, n_steps=100, verbosity=1, gradien
 
         Optimisers.update!(opt_state, x, ∇f)
 
-        if i > 1
+        if i > 1 && params.save_cosine_similarity
             csim = (last_update' * (last_x .- x)) / (norm(last_update) * norm(last_x .- x))
             push!(csims, csim)
         end
         last_update = last_x .- x
 
-        push!(d_hist, norm(last_x .- x))
+        params.save_dist && push!(d_hist, norm(last_x .- x))
 
-        if i % print_freq == 0
+        if i % params.print_freq == 0
             println(i, ": ", y, " - ||∇f|| = ", grad_norm)
-            verbosity > 1 && println("\t ||xᵢ - xᵢ₊₁|| = ", norm(last_x .- x))
-            verbosity > 1 && println("\t cos-similarity = ", csim)
+            params.verbosity > 1 && println("\t ||xᵢ - xᵢ₊₁|| = ", norm(last_x .- x))
+            params.verbosity > 1 && params.save_cosine_similarity && println("\t cos-similarity = ", csim)
         end
     end
 
-    return x_best, y_hist, g_hist, d_hist, csims
+    return (x_opt=x_best, y_hist=y_hist, t_hist=t_hist, g_hist=g_hist, d_hist=d_hist, csims=csims)
 end

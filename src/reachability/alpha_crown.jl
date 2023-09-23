@@ -278,7 +278,7 @@ end
 
 
 function optimise_bounds(solver::aCROWN, net::NN, input_set::Hyperrectangle; opt=nothing,
-                         print_freq=50, n_steps=100, patience=50, timeout=60, print_result=false) where NN<:Union{NV.Network, NV.NetworkNegPosIdx}
+                         params=OptimisationParams(), print_result=false) where NN<:Union{NV.Network, NV.NetworkNegPosIdx}
     opt = isnothing(opt) ? OptimiserChain(Adam(), Projection(0., 1.)) : opt
 
     α0, lbs0, ubs0 = initialize_params(solver, net, 1, input_set, return_bounds=true)
@@ -289,10 +289,10 @@ function optimise_bounds(solver::aCROWN, net::NN, input_set::Hyperrectangle; opt
         optfun = α -> propagate(solver, net, input_set, α)
     end
 
-    α, y_hist, g_hist, d_hist, csims = optimise(optfun, opt, α0, print_freq=print_freq, n_steps=n_steps,
-                                                patience=patience, timeout=timeout)
 
-    print_result && propagate(solver, net, input_set, α, lbs=lbs0, ubs=ubs0, printing=true)
+    res = optimise(optfun, opt, α0, params=params)
 
-    return α, y_hist, g_hist, d_hist, csims
+    print_result && propagate(solver, net, input_set, res.x_opt, lbs=lbs0, ubs=ubs0, printing=true)
+
+    return res
 end

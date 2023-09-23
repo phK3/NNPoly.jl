@@ -228,7 +228,7 @@ end
 
 
 function optimise_bounds(solver::PolyCROWN, net::NV.NetworkNegPosIdx, input_set::Hyperrectangle; opt=nothing,
-                        print_freq=50, n_steps=100, patience=50, timeout=60, print_result=false, poly_layers=1)
+                        params=OptimisationParams(), print_result=false, poly_layers=1)
     psolver = solver.poly_solver
     
     opt = isnothing(opt) ? OptimiserChain(Adam()) : opt
@@ -258,14 +258,14 @@ function optimise_bounds(solver::PolyCROWN, net::NV.NetworkNegPosIdx, input_set:
         end
     end
 
-    α, y_hist, g_hist, d_hist, csims = optimise(optfun, opt, α0, print_freq=print_freq, n_steps=n_steps,
-                            patience=patience, timeout=timeout)
+    res = optimise(optfun, opt, α0, params=params)
 
     if print_result
+        α = res.x_opt
         αp = α[1:nₚ]
         αl = α[nₚ+1:end]
         propagate(solver, net_poly, net, s, αp, αl, lbs=lbs0, ubs=ubs0, printing=true)
     end
 
-    return α, y_hist, g_hist, d_hist, csims
+    return res
 end
