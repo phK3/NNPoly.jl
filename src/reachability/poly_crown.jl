@@ -172,8 +172,6 @@ function initialize_params(solver::PolyCROWN, net::NV.NetworkNegPosIdx, degree::
     net = NV.NetworkNegPosIdx(net.layers[solver.poly_layers+1:end])
 
     α_poly, α_lin, lbs, ubs = initialize_params(solver, net_poly, net, degree, input)
-    α_poly = solver.separate_alpha ? [α_poly; α_poly] : α_poly
-    α_lin = solver.separate_alpha ? [α_lin; α_lin] : α_lin
     α0 = [α_poly; α_lin]
 
     if return_bounds
