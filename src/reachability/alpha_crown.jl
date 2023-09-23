@@ -213,15 +213,24 @@ args:
 returns:
     vector of initial slopes
 """
-function initialize_params(solver::aCROWN, net, degree::N, input::Hyperrectangle) where N <: Number
+function initialize_params(solver::aCROWN, net, degree::N, input::Hyperrectangle; return_bounds=false) where N <: Number
     n_neurons = sum(length(l.bias) for l in net.layers)
     α = zeros(n_neurons)
     αs = vec2propagation(net, α)
     # for initialization separate_alpha isn't needed
     isolver = aCROWN(initialize=true, separate_alpha=false)
     ŝ = NV.forward_network(isolver, net, input, αs)
+
+    α0 = reduce(vcat, vec.(αs))
+    if solver.separate_alpha
+        α0 = [α0; α0]
+    end
     
-    return reduce(vcat, vec.(αs)), ŝ.lbs, ŝ.ubs
+    if return_bounds
+        return α0, ŝ.lbs, ŝ.ubs
+    else
+        return α0
+    end
 end
 
 
@@ -272,8 +281,7 @@ function optimise_bounds(solver::aCROWN, net::NN, input_set::Hyperrectangle; opt
                          print_freq=50, n_steps=100, patience=50, timeout=60, print_result=false) where NN<:Union{NV.Network, NV.NetworkNegPosIdx}
     opt = isnothing(opt) ? OptimiserChain(Adam(), Projection(0., 1.)) : opt
 
-    α0, lbs0, ubs0 = initialize_params(solver, net, 1, input_set)
-    α0 = solver.separate_alpha ? [α0; α0] : α0
+    α0, lbs0, ubs0 = initialize_params(solver, net, 1, input_set, return_bounds=true)
 
     if solver.use_tightened_bounds
         optfun = α -> propagate(solver, net, input_set, α, lbs=lbs0, ubs=ubs0)
