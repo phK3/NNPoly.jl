@@ -93,9 +93,12 @@ returns:
     all_steps - number of steps performed by verifier
     result - (String) SAT, UNSAT or inconclusive
 """
-function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_freq=50, n_steps=5000,
-                       only_pattern=nothing, save_history=false, timeout=60.)
+function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing, max_properties=Inf, only_pattern=nothing, 
+                        save_history=false, save_times=false)
     f = CSV.File(string(dir, "/instances.csv"), header=false)
+
+    # need y history to get access to final loss values
+    params.save_ys = true
 
     n = length(f)
     networks = String[]
@@ -104,6 +107,7 @@ function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_f
     y_starts = zeros(n)
     ys = zeros(n)
     y_hists = []
+    t_hists = []
     #all_steps = zeros(Integer, n)
     times = zeros(n)
 
@@ -145,7 +149,8 @@ function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_f
         y_start = propagate(solver, net_npi, s, α0; printing=true)
 
         println("--- optimisation ---")
-        time = @elapsed α₁, y_hist, g_hist, d_hist, csims = optimise_bounds(solver, net_npi, input_set, print_freq=print_freq, n_steps=n_steps, timeout=timeout)
+        time = @elapsed res = optimise_bounds(solver, net_npi, input_set, params=params)
+        α₁ = res.x_opt
 
         println("\ttime = ", time)
         println("--- optimised α ---")
@@ -156,8 +161,9 @@ function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_f
         #push!(results, result)
         times[i] = time
         y_starts[i] = y_start
-        ys[i] = y_hist[end]
-        save_history && push!(y_hists, y_hist)
+        ys[i] = res.y_hist[end]
+        save_history && push!(y_hists, res.y_hist)
+        save_times && push!(t_hists, res.t_hist)
 
         cnt += 1
         if cnt >= max_properties
@@ -166,7 +172,7 @@ function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_f
 
         # also backup, if sth goes wrong later on
         if !isnothing(logfile)
-            save(logfile, "properties", properties, "times", times, "y_starts", y_starts, "ys", ys, "y_hists", y_hists)
+            save(logfile, "properties", properties, "times", times, "y_starts", y_starts, "ys", ys, "y_hists", y_hists, "t_hists", t_hists)
         end
     end
 
@@ -180,12 +186,22 @@ function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_f
 
     println("saving results ...")
     if !isnothing(logfile)
-        save(logfile, "properties", properties, "times", times, "y_starts", y_starts, "ys", ys, "y_hists", y_hists)
+        save(logfile, "properties", properties, "times", times, "y_starts", y_starts, "ys", ys, "y_hists", y_hists, "t_hists", t_hists)
     end
 
     if save_history
-        return properties, times, y_starts, ys, y_hists
+        return properties, times, y_starts, ys, y_hists, t_hists
     else
         return properties, times, y_starts, ys
     end
+end
+
+
+function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_freq=50, n_steps=5000,
+    only_pattern=nothing, save_history=false, save_times=false, timeout=60.)
+    params = OptimisationParams(n_steps=n_steps, timeout=timeout, print_freq=print_freq)
+    save_history && (params.save_ys = true)
+    save_times && (params.save_times = true)
+    return verify_vnnlib(solver, dir, params, logfile=logfile, max_properties=max_properties, only_pattern=only_pattern, 
+                        save_history=save_history, save_times=save_times)
 end
