@@ -87,6 +87,7 @@ kwargs:
     eager - use eager Bounds checking in ZoPE
     only_pattern - only look at properties whose network_path starts with only_pattern
     timeout - timeout **per instance** in seconds
+    force_gc - force garbage collection after each run
 
 returns:
     counterexample - or nothing, if no counterexample could be found
@@ -94,7 +95,7 @@ returns:
     result - (String) SAT, UNSAT or inconclusive
 """
 function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing, max_properties=Inf, only_pattern=nothing, 
-                        save_history=false, save_times=false)
+                        save_history=false, save_times=false, force_gc=false)
     f = CSV.File(string(dir, "/instances.csv"), header=false)
 
     # need y history to get access to final loss values
@@ -173,6 +174,11 @@ function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing,
         # also backup, if sth goes wrong later on
         if !isnothing(logfile)
             save(logfile, "properties", properties, "times", times, "y_starts", y_starts, "ys", ys, "y_hists", y_hists, "t_hists", t_hists)
+        end
+
+        if force_gc
+            # force garbage collection 
+            GC.gc()
         end
     end
 
