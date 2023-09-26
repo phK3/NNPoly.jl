@@ -204,10 +204,10 @@ end
 
 
 function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_freq=50, n_steps=5000,
-    only_pattern=nothing, save_history=false, save_times=false, timeout=60.)
+    only_pattern=nothing, save_history=false, save_times=false, timeout=60., force_gc=false)
     params = OptimisationParams(n_steps=n_steps, timeout=timeout, print_freq=print_freq)
     save_history && (params.save_ys = true)
     save_times && (params.save_times = true)
     return verify_vnnlib(solver, dir, params, logfile=logfile, max_properties=max_properties, only_pattern=only_pattern, 
-                        save_history=save_history, save_times=save_times)
+                        save_history=save_history, save_times=save_times, force_gc=force_gc)
 end
