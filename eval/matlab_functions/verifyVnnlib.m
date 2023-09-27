@@ -7,7 +7,8 @@ function results = verifyVnnlib(instances, method, informat, outformat, varargin
 %
 % instances - instances.csv file for vnnlib properties
 % method - either 'polyZono' or 'zono'
-% informat - e.g. 'BC'
+% informat - e.g. 'BC' (for Batch, Channel) or e.g. SSC (for spatial,
+% spatial, channel)
 % outformat - e.g. 'BC'
 % logfile - path to store results
     dirs = split(instances, '/');
@@ -18,21 +19,40 @@ function results = verifyVnnlib(instances, method, informat, outformat, varargin
     opts.Delimiter = {','};
     instances = readtable(instances, opts);
 
+    netOld = '';
     results = cell(size(instances, 1), 1);
     for i = 1:size(instances, 1)
         %TODO: only for the acas networks as they need vnnlib!!!
         row = instances(i,:);
-        net = row.network{1};
-        parts = split(net, '.');
-        prefix = parts{1};
-        net = strcat(filepath, '/', prefix, '_simple.onnx');
-        display(net)
-        net = convert_onnx_network(net{1}, informat, outformat);
+        netname = row.network{1};
+        % only load onnx network, if it is not already loaded from a
+        % previous iteration (it's quite time intensive
+        if ~strcmp(netname, netOld)
+            netOld = netname;
+            if contains(netname, 'ACAS')
+                parts = split(netname, '.');
+                prefix = parts{1};
+                net = strcat(filepath, '/', prefix, '_simple.onnx');
+                display(net) 
+                net = convert_onnx_network(net{1}, informat, outformat);
+            else
+                net = strcat(filepath, '/', netname);
+                display(net)
+                net = convert_onnx_network(net{1}, informat, outformat);
+            end
+        end
 
         property = row.property{1};
-        parts = split(property, '/');
-        property = strcat(filepath, '/vnnlib_rewrite/',  parts{2});
-        display(property)
+
+        if contains(row.network{1}, 'ACAS')
+            parts = split(property, '/');
+            property = strcat(filepath, '/vnnlib_rewrite/',  parts{2});
+            display(property)
+        else
+            property = strcat(filepath, '/', property);
+            display(property)
+        end
+
         [in_spec, out_spec] = vnnlib2cora(property{1});
         if isequal(method, 'polyZono')
             box = verifyPolyZono(net, in_spec{1})
