@@ -95,13 +95,14 @@ returns:
     result - (String) SAT, UNSAT or inconclusive
 """
 function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing, max_properties=Inf, only_pattern=nothing, 
-                        save_history=false, save_times=false, force_gc=false)
+                        save_history=false, save_times=false, force_gc=false, start_idx=1, stop_idx=nothing)
     f = CSV.File(string(dir, "/instances.csv"), header=false)
 
     # need y history to get access to final loss values
     params.save_ys = true
 
     n = length(f)
+    stop_idx = isnothing(stop_idx) ? n : stop_idx
     networks = String[]
     properties = String[]
     #results = String[]
@@ -125,6 +126,9 @@ function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing,
 
         if !isnothing(only_pattern) && !contains(netpath, only_pattern)
             # just for now
+            continue
+        end
+        if (i < start_idx) || (i > stop_idx)
             continue
         end
 
