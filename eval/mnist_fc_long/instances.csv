@@ -1,0 +1,10 @@
+../mnist_fc/onnx/mnist-net_256x2.onnx,../mnist_fc/vnnlib/prop_0_spiral_15.vnnlib,300
+../mnist_fc/onnx/mnist-net_256x2.onnx,../mnist_fc/vnnlib/prop_0_spiral_25.vnnlib,300
+../mnist_fc/onnx/mnist-net_256x2.onnx,../mnist_fc/vnnlib/prop_2_spiral_20.vnnlib,300
+../mnist_fc/onnx/mnist-net_256x2.onnx,../mnist_fc/vnnlib/prop_2_spiral_25.vnnlib,300
+../mnist_fc/onnx/mnist-net_256x2.onnx,../mnist_fc/vnnlib/prop_3_spiral_15.vnnlib,300
+../mnist_fc/onnx/mnist-net_256x4.onnx,../mnist_fc/vnnlib/prop_3_spiral_25.vnnlib,300
+../mnist_fc/onnx/mnist-net_256x4.onnx,../mnist_fc/vnnlib/prop_8_spiral_20.vnnlib,300
+../mnist_fc/onnx/mnist-net_256x4.onnx,../mnist_fc/vnnlib/prop_9_spiral_15.vnnlib,300
+../mnist_fc/onnx/mnist-net_256x4.onnx,../mnist_fc/vnnlib/prop_11_spiral_25.vnnlib,300
+../mnist_fc/onnx/mnist-net_256x4.onnx,../mnist_fc/vnnlib/prop_12_spiral_25.vnnlib,300
