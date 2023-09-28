@@ -214,5 +214,5 @@ function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_f
     save_history && (params.save_ys = true)
     save_times && (params.save_times = true)
     return verify_vnnlib(solver, dir, params, logfile=logfile, max_properties=max_properties, only_pattern=only_pattern, 
-                        save_history=save_history, save_times=save_times, force_gc=force_gc)
+                        save_history=save_history, save_times=save_times, force_gc=force_gc, start_idx=start_idx, stop_idx=stop_idx)
 end
