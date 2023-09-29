@@ -115,5 +115,5 @@ for net in nets
 end
 
 
-save("mnist_fc_all_spirals.jld2", "loss_lins_all", loss_lins_all, "loss_polys_all", 
+save("eval/mnist_fc_all_spirals.jld2", "loss_lins_all", loss_lins_all, "loss_polys_all", 
     loss_polys_all, "times_lin_all", times_lin_all, "times_poly_all", times_poly_all)
