@@ -85,8 +85,13 @@ function NV.forward_network(solver::PolyCROWN, net_poly::NN, net::NN, input_set:
         Zl = backward_network(lsolver, nn_part, lbs[1:i-1], ubs[1:i-1], input_set, αsₗ[1:i])
         Zu = backward_network(lsolver, nn_part, lbs[1:i-1], ubs[1:i-1], input_set, αsᵤ[1:i], upper=true)
         
-        l_poly = exact_addition(affine_map(max.(0, Zl.Λ), Lₗ, Zl.γ), linear_map(min.(0, Zl.Λ), Uₗ))
-        u_poly = exact_addition(affine_map(max.(0, Zu.Λ), Uᵤ, Zu.γ), linear_map(min.(0, Zu.Λ), Lᵤ))
+        if solver.poly_solver.common_generators
+            l_poly = interval_map_common_lower(min.(0, Zl.Λ), max.(0, Zl.Λ), Lₗ, Uₗ, Zl.γ)
+            u_poly = interval_map_common_upper(min.(0, Zu.Λ), max.(0, Zu.Λ), Lₗ, Uₗ, Zu.γ)
+        else
+            l_poly = exact_addition(affine_map(max.(0, Zl.Λ), Lₗ, Zl.γ), linear_map(min.(0, Zl.Λ), Uₗ))
+            u_poly = exact_addition(affine_map(max.(0, Zu.Λ), Uᵤ, Zu.γ), linear_map(min.(0, Zu.Λ), Lᵤ))
+        end
         
         ll, lu = bounds(l_poly)
         ul, uu = bounds(u_poly)
