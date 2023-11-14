@@ -44,12 +44,12 @@ end
 
 
 # raise sparse polynomial to power n
-function pow(sp::SparsePolynomial, n::Integer)
+function pow(sp::SparsePolynomial{N,M}, n::Integer) where {N,M}
     r, c = size(sp.G)
     n_terms = binomial(n + c - 1, c-1)
 
     Ĝ = zeros(r, n_terms)
-    Ê = zeros(Integer, size(sp.E, 1), n_terms)
+    Ê = zeros(M, size(sp.E, 1), n_terms)
 
     prod_cum = zeros(r)
     sum_cum = zeros(size(sp.E, 1))
@@ -69,14 +69,14 @@ end
 Raise SparsePolynomial to power n, but only calculated for dimensions with crossing ReLUs - other
 dimensions are 0.
 """
-function pow(sp::SparsePolynomial, n::Integer, l, u)
+function pow(sp::SparsePolynomial{N,M}, n::Integer, l, u) where {N,M}
     r, c = size(sp.G)
     n_terms = binomial(n + c - 1, c-1)
 
     # only need to calculate power for crossing ReLUs
     mask = (l .< 0) .& (u .> 0)
     Ĝ = zeros(r, n_terms)
-    Ê = zeros(Integer, size(sp.E, 1), n_terms)
+    Ê = zeros(M, size(sp.E, 1), n_terms)
 
     prod_cum = zeros(sum(mask))
     sum_cum = zeros(size(sp.E, 1))
@@ -167,11 +167,11 @@ end
 Custom quad prop with bounds on the ReLU inputs, s.t. we don't calculate
 quadratic map for fixed ReLUs
 """
-function fast_quad_prop(a, b, c, sp::SparsePolynomial, l, u)
+function fast_quad_prop(a, b, c, sp::SparsePolynomial{N,M}, l, u) where {N,M}
     n, m = size(sp.G)
 
     G_lin = b .* sp.G
-    p = SparsePolynomial([c G_lin], [zeros(Integer, length(sp.ids)) sp.E], sp.ids)
+    p = SparsePolynomial([c G_lin], [zeros(M, length(sp.ids)) sp.E], sp.ids)
 
     if sum((l .< 0) .& (u .> 0)) != 0
         # only if there are crossing ReLUs
