@@ -1,9 +1,9 @@
 
 # symbolic interval with polynomial functions as lower and upper relaxation
 
-struct PolyInterval{N<:Number}
-    Low::SparsePolynomial{N}
-    Up::SparsePolynomial{N}
+struct PolyInterval{N<:Number,M<:Integer}
+    Low::SparsePolynomial{N,M}
+    Up::SparsePolynomial{N,M}
 end
 
 

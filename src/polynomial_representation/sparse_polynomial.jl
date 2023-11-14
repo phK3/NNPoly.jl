@@ -8,9 +8,9 @@
 #
 # Changes mostly due to making the code differentiable by Zygote.
 
-struct SparsePolynomial{N<:Number}
+struct SparsePolynomial{N<:Number,M<:Integer}
     G::Matrix{N}  # generator matrix
-    E::Matrix{Integer}  # exponent matrix
+    E::Matrix{M}  # exponent matrix  (default is UInt16)
     ids::Vector{Integer}  # vector holding variable ids
 end
 
@@ -18,7 +18,7 @@ end
 function SparsePolynomial(h::Hyperrectangle{N}) where N <: Number
     n = dim(h)
     G = [h.center I(n) .* h.radius]
-    E = [zeros(Integer, n) I(n)]
+    E = [zeros(UInt16, n) I(n)]
     sp = SparsePolynomial(G, E, Vector{Integer}(1:n))
     return sp
 end
@@ -168,12 +168,12 @@ args:
     sp - (SparsePolynomial) the polynomial
     new_ids - (Vector{Integer}) the ids of the new variables
 """
-function expand_ids(sp::SparsePolynomial, new_ids)
+function expand_ids(sp::SparsePolynomial{N,M}, new_ids) where {N,M}
     n_ids, n_gens = size(sp.E)
 
     # keep ids sorted
     ids = sort(sp.ids ∪ new_ids)
-    Ê = zeros(Integer, length(ids), n_gens)
+    Ê = zeros(M, length(ids), n_gens)
 
     for (i, id) in enumerate(ids)
         if id in sp.ids
@@ -260,12 +260,12 @@ end
 """
 Shifts the starting point of the polynomial by a vector v.
 """
-function translate(sp::SparsePolynomial, v::AbstractVector)
+function translate(sp::SparsePolynomial{N,M}, v::AbstractVector) where {N,M}
     const_idx = @ignore_derivatives findfirst(x -> sum(x) == 0, eachcol(sp.E))
 
     if isnothing(const_idx)
         Ĝ = [v sp.G]
-        Ê = [zeros(Integer, size(sp.E, 1)) sp.E]
+        Ê = [zeros(M, size(sp.E, 1)) sp.E]
     else
         other_idxs = @ignore_derivatives 1:size(sp.G, 2) .!= const_idx
         Ĝ = [sp.G[:,const_idx] .+ v sp.G[:,other_idxs]]
@@ -326,12 +326,12 @@ end
 Computes a one-dimensional quadratic function for each input dimension.
 I.e. yᵢ = aᵢxᵢ² + bᵢxᵢ + cᵢ for each input dimension i
 """
-function quadratic_propagation(a, b, c, sp::SparsePolynomial)
+function quadratic_propagation(a, b, c, sp::SparsePolynomial{N,M}) where {N,M}
     n, m = size(sp.G)
 
     p_quad = quadratic_map_1d(a, sp)
     G_lin = b .* sp.G
-    p_affine = SparsePolynomial([c G_lin], [zeros(Integer, length(sp.ids)) sp.E], sp.ids)
+    p_affine = SparsePolynomial([c G_lin], [zeros(M, length(sp.ids)) sp.E], sp.ids)
     # TODO: how much computation can we save by knowing that both came from the same polynomial?
     return exact_addition(p_quad, p_affine)
 end
@@ -341,18 +341,18 @@ end
 Computes the convex hull of two polynomials.
 Careful: Dependencies between two polynomials are discarded to compute the convex hull!
 """
-function convex_hull(sp1::SparsePolynomial, sp2::SparsePolynomial)
+function convex_hull(sp1::SparsePolynomial{N,M}, sp2::SparsePolynomial{N,M}) where {N,M}
     # TODO: can we find a way to include the dependencies? Just use exact addition?
     G = 0.5 .* [sp1.G sp1.G sp2.G -sp2.G]
 
     n1, m1 = size(sp1.E)
     n2, m2 = size(sp2.E)
-    z12 = zeros(Integer, n1, m2)
-    z21 = zeros(Integer, n2, m1)
-    z_11 = zeros(Integer, 1, m1)
-    z_12 = zeros(Integer, 1, m2)
-    o_11 = ones(Integer, 1, m1)
-    o_12 = ones(Integer, 1, m2)
+    z12 = zeros(M, n1, m2)
+    z21 = zeros(M, n2, m1)
+    z_11 = zeros(M, 1, m1)
+    z_12 = zeros(M, 1, m2)
+    o_11 = ones(M, 1, m1)
+    o_12 = ones(M, 1, m2)
     E = [sp1.E sp1.E z12   z12;
          z21   z21   sp2.E sp2.E;
          z_11  o_11  z_12  o_12]
@@ -537,7 +537,7 @@ end
 """
 Computes vector of lower bounds for Matrix of exponents.
 """
-function monomial_lbs(E)
+function monomial_lbs(E::M) where M<:AbstractMatrix{<:Integer}
     one_odd = .~reduce(&, iseven.(E), dims=1)
     # sum is only zero for a column if all rows are zero
     consts  = sum(E, dims=1) .== 0
@@ -746,7 +746,7 @@ the dimensions of the second polynomial are the second dimensions of the output 
 args:
     polys - (Vector of SparsePolynomial) polynomials to be stacked
 """
-function stack_polys(polys)
+function stack_polys(polys::AbstractVector{<:SparsePolynomial{N,M}}) where {N,M}
     # TODO: really slow implementation
     if length(polys) == 2
         p1 = polys[1]
@@ -757,7 +757,7 @@ function stack_polys(polys)
 
         # is this necessary?
         ids = sort(p1.ids ∪ p2.ids)
-        E = zeros(Integer, length(ids), size(G, 2))
+        E = zeros(M, length(ids), size(G, 2))
 
         for (i, id) in enumerate(ids)
             if id in p1.ids
