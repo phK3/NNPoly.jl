@@ -32,6 +32,22 @@ function interval_map(W⁻, W⁺, L, U, b)
 end
 
 
+function interval_map_common_lower(W⁻, W⁺, L::SparsePolynomial, U::SparsePolynomial, b)
+    @assert L.E == U.E "Exponent matrices must be equal for common interval map!"
+    Gₗ = W⁻ * U.G .+ W⁺ * L.G
+    L̂ = SparsePolynomial(Gₗ, L.E, L.ids)
+    return translate(L̂, b)
+end
+
+
+function interval_map_common_upper(W⁻, W⁺, L::SparsePolynomial, U::SparsePolynomial, b)
+    @assert L.E == U.E "Exponent matrices must be equal for common interval map!"
+    Gᵤ = W⁻ * L.G .+ W⁺ * U.G
+    Û = SparsePolynomial(Gᵤ, U.E, U.ids)
+    return translate(Û, b)
+end
+
+
 function interval_map_common(W⁻, W⁺, L::SparsePolynomial, U::SparsePolynomial, b)
     @assert L.E == U.E "Exponent matrices must be equal for common interval_map!"
     Gₗ = W⁻ * U.G .+ W⁺ * L.G
