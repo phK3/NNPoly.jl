@@ -105,7 +105,7 @@ end
 Removes duplicate monomial entries by summing up monomial coefficients for
     monomials with same exponents.
 """
-function compact(sp::SparsePolynomial)
+function compact(sp::SparsePolynomial{N,M}) where {N,M}
     #=# permutation for lexicographically sorting the columns of the exponent matrix
     p = @ignore_derivatives sortperm(collect(eachcol(sp.E)))
 
@@ -154,7 +154,7 @@ function compact(sp::SparsePolynomial)
         # -> create constant zero SparsePolynomial
         n_dim = size(Ĝ, 1)
         Ĝ = zeros(n_dim, 1)
-        Ê = zeros(Integer, length(sp.ids), 1)
+        Ê = zeros(M, length(sp.ids), 1)
     end
 
     return SparsePolynomial(Ĝ, Ê, sp.ids)
