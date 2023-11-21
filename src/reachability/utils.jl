@@ -7,7 +7,7 @@ function forward_layer(solver, L::Union{NV.Layer,NV.LayerNegPosIdx}, input, α)
 end
 
 
-function NV.forward_network(solver, net::Union{NV.Network,NV.NetworkNegPosIdx}, input, αs)
+function NV.forward_network(solver, net::NV.AbstractNetwork{N}, input, αs) where N<:Number
     s = input
     for (L, α) in zip(net.layers, αs)
         s = forward_layer(solver, L, s, α)

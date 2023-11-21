@@ -8,12 +8,14 @@ const NV = NeuralVerification
 # Zygote also uses nothing for zero gradient, so need this to be defined
 Base.:*(a::Nothing, x) = zero(x)
 Base.:*(x, a::Nothing) = zero(x)
+Base.:-(x::Nothing) = nothing  # can't really get zero(nothing)
 
 include("utils.jl")
 include("optimisation_loop.jl")
 
 include("polynomial_representation/sparse_polynomial.jl")
 include("polynomial_representation/autodiff_speedup.jl")
+include("reachability/autodiff_speedup.jl")
 
 include("polynomial_optimization.jl")
 include("approximations/chebyshev.jl")

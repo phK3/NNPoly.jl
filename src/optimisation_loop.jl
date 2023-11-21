@@ -1,24 +1,24 @@
 
 @with_kw mutable struct OptimisationParams
-    n_steps=100
+    n_steps::Int=100
     # timeout in seconds
-    timeout=60.
+    timeout::Float64=60.
     # number of iterations w/o improvement before early stopping
-    patience=50
-    gradient_tol=1e-5
+    patience::Int=50
+    gradient_tol::Float64=1e-5
     # console output
-    verbosity=1
-    print_freq=50
+    verbosity::Int=1
+    print_freq::Int=50
     # save history of loss values
-    save_ys = false
+    save_ys::Bool = false
     # save history of gradient norms
-    save_gs = false
+    save_gs::Bool = false
     # saving history of times for plotting and analysis
-    save_times = false
+    save_times::Bool = false
     # saving history of distance between iterates
-    save_dist = false
+    save_dist::Bool = false
     # save history of cosine similarity between iterates
-    save_cosine_similarity = false
+    save_cosine_similarity::Bool = false
 end
 
 
@@ -82,9 +82,10 @@ function optimise(f, opt, x₀; params=OptimisationParams())
 
     for i in 1:params.n_steps
         last_x = copy(x)
-        y, g = withgradient(f, x)
+        ŷ, g = withgradient(f, x)
         # Zygote treats nothing as zero
-        ∇f = isnothing(g[1]) ? zeros(size(x)) : g[1]
+        y = ŷ::Float64
+        ∇f = isnothing(g[1]) ? zeros(size(x)) : g[1]::Vector{eltype(x₀)}
 
         grad_norm = norm(∇f)
 

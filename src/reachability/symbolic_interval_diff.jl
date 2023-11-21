@@ -4,25 +4,25 @@
 """
 Linear symbolic interval
 """
-struct SymbolicIntervalDiff
-    Λ # matrix for symbolic lower bound
-    λ # vector for constant part of symbolic lower bond
-    Γ # matrix for symbolic upper bound
-    γ # vector for constant part of symbolic upper bound
-    lb # lower bound of input domain
-    ub # upper bound of input domain
-    lbs # lower bounds for intermediate neurons
-    ubs # upper bounds for intermediate neurons
+struct SymbolicIntervalDiff{N<:Number}
+    Λ::Matrix{N} # matrix for symbolic lower bound
+    λ::Vector{N} # vector for constant part of symbolic lower bond
+    Γ::Matrix{N} # matrix for symbolic upper bound
+    γ::Vector{N} # vector for constant part of symbolic upper bound
+    lb::Vector{N} # lower bound of input domain
+    ub::Vector{N} # upper bound of input domain
+    lbs::Vector{Vector{N}} # lower bounds for intermediate neurons
+    ubs::Vector{Vector{N}} # upper bounds for intermediate neurons
 end
 
 
-function init_symbolic_interval_diff(net::NV.NetworkNegPosIdx, input::AbstractHyperrectangle)
+function init_symbolic_interval_diff(net::NV.NetworkNegPosIdx, input::AbstractHyperrectangle{<:N}) where N<:Number
     n = dim(input)
 
-    Λ = Matrix(I(n))
-    λ = zeros(n)
-    Γ = Matrix(I(n))
-    γ = zeros(n)
+    Λ = Matrix{N}(I(n))
+    λ = zeros(N, n)
+    Γ = Matrix{N}(I(n))
+    γ = zeros(N, n)
 
     layer_sizes = [length(l.bias) for l in net.layers]
     lbs = [fill(-Inf, ls) for ls in layer_sizes]
@@ -35,9 +35,10 @@ end
 """
 calculates element-wise lower and upper bounds of a function A*x + b for x ∈ [lb, ub]
 """
-function bounds(A::AbstractMatrix, b::AbstractVector, lb::AbstractVector, ub::AbstractVector)
-    A⁻ = min.(0, A)
-    A⁺ = max.(0, A)
+#function bounds(A::AbstractMatrix, b::AbstractVector, lb::AbstractVector, ub::AbstractVector)
+function bounds(A::Matrix{N}, b::Vector{N}, lb::Vector{N}, ub::Vector{N}) where N<:Number
+    A⁻ = min.(zero(eltype(A)), A)
+    A⁺ = max.(zero(eltype(A)), A)
 
     low = A⁻ * ub .+ A⁺ * lb .+ b
     up  = A⁻ * lb .+ A⁺ * ub .+ b

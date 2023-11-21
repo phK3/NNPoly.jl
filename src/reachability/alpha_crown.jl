@@ -2,21 +2,21 @@
 @with_kw struct aCROWN <: NV.Solver 
     # use two different α values for the same neuron (one for computation of lower
     # bound and one for computation of upper bound)
-    separate_alpha = true
+    separate_alpha::Bool = true
     # always use tightest bounds found during whole optimisation process
-    use_tightened_bounds = true
+    use_tightened_bounds::Bool = true
     # set initial α
-    initialize = false
+    initialize::Bool = false
 end
 
 
 """
 Linear bounding function Λx + γ representing either a linear lower or upper bound.
 """
-struct SymbolicBound
+struct SymbolicBound{N<:Number}
     # B(x) ≤≥ Λx + γ
-    Λ::Union{Matrix{Float64}, UniformScaling{Bool}}  # UniformScaling for I
-    γ::Union{Vector{Float64}, Float64}  # Float64 for 0.
+    Λ::Matrix{N}
+    γ::Vector{N}
 end
 
 
@@ -38,6 +38,12 @@ function backward_linear(solver::aCROWN, L::Union{NV.Layer,NV.LayerNegPosIdx}, i
 end
 
 
+function initialize_slopes!(solver::aCROWN, lbs::VN, ubs::VN, α::VN) where {N<:Number,VN<:AbstractVector{N}}
+    aₗ = NV.relaxed_relu_gradient_lower.(lbs, ubs)
+    α .= aₗ
+    return aₗ
+end
+
 """
 Perform backsubstitution for a ReLU layer given linear bounds in terms of the output of the ReLU layer.
 
@@ -55,32 +61,27 @@ args:
 kwargs:
     upper - (defaults to false) wether to compute an upper or lower bound
 """
-function backward_act(solver::aCROWN, L::Union{NV.Layer{NV.ReLU},NV.LayerNegPosIdx{NV.ReLU}}, input::SymbolicBound, lbs, ubs, α; upper=false)
-    flip = upper ? -1. : 1.  # Λ⁺ and Λ⁻ are flipped for upper bound vs lower bound
-    Λ⁺ = max.(flip * input.Λ, 0)
-    Λ⁻ = min.(flip * input.Λ, 0)
+function backward_act(solver::aCROWN, L::Union{NV.Layer{NV.ReLU},NV.LayerNegPosIdx{NV.ReLU}}, input::SymbolicBound{N}, lbs, ubs, α; upper=false) where N<:Number
+    flip = upper ? -one(N) : one(N)  # Λ⁺ and Λ⁻ are flipped for upper bound vs lower bound
+    Λ⁺ = max.(flip * input.Λ, zero(N))
+    Λ⁻ = min.(flip * input.Λ, zero(N))
 
-    if solver.initialize
-        aₗ = ChainRulesCore.ignore_derivatives() do
-            aₗ = NV.relaxed_relu_gradient_lower.(lbs, ubs)
-            α .= aₗ
-            aₗ
-        end
+    aₗ::Vector{N} = if solver.initialize
+        @ignore_derivatives initialize_slopes!(solver, lbs, ubs, α)
     else
         crossing = @ignore_derivatives (lbs .< 0) .& (ubs .> 0)
         fixed_active = @ignore_derivatives lbs .>= 0
 
         # need to clamp α value, since we can't use projection for whole optimisation values, when we
         # polynomially relax the first layer
-        aₗ = crossing .* clamp.(α, 0, 1) .+ fixed_active
+        # aₗ = crossing .* clamp.(α, 0, 1) .+ fixed_active
+        crossing .* clamp.(α, zero(N), one(N)) .+ fixed_active
     end
 
-    # maybe also transform to matrix operation w/o list comprehension
-    # but beware of divide by zero!!!
-    aᵤ = [NV.relaxed_relu_gradient(lᵢ, uᵢ) for (lᵢ, uᵢ) in zip(lbs, ubs)]
-    bᵤ = aᵤ .* max.(-lbs, 0)    
+    aᵤ = relaxed_relu_gradient_vectorized(lbs, ubs)
+    bᵤ = aᵤ .* max.(.-lbs, zero(eltype(lbs)))    
 
-    Λ = flip * (Λ⁻ .* aᵤ' + Λ⁺ .* aₗ')
+    Λ = flip * (Λ⁻ .* aᵤ' .+ Λ⁺ .* aₗ')
     γ = flip * (Λ⁻ * bᵤ) .+ input.γ
 
     return SymbolicBound(Λ, γ)
@@ -109,8 +110,9 @@ kwargs:
 """
 function backward_network(solver, net, lbs, ubs, input, αs; upper=false, down_to_layer=1)
     # assumes that last layer is linear!
-    Z = SymbolicBound(I, 0.)
-    Z = backward_linear(solver, net.layers[end], Z)
+    #Z = SymbolicBound(I, 0.)
+    #Z = backward_linear(solver, net.layers[end], Z)
+    Z = SymbolicBound(net.layers[end].weights, net.layers[end].bias)
     for i in reverse(down_to_layer:length(net.layers)-1)
         layer = net.layers[i]
 
@@ -120,6 +122,23 @@ function backward_network(solver, net, lbs, ubs, input, αs; upper=false, down_t
 
     return Z
 end
+
+
+# @ignore_derivatives creates a closure, which led to some variables being inferred as Core.Box leading to type instability.
+# therefore, we factor out the update_bounds! function and add @non_differentiable ourselves.
+function update_bounds!(lbs, ubs, lbs_cur, ubs_cur, ll, uu, i)
+    if length(lbs) < i
+        push!(lbs, ll)
+        push!(ubs, uu)
+    else
+        lbs[i] .= max.(lbs[i], lbs_cur[i])
+        ubs[i] .= min.(ubs[i], ubs_cur[i])
+        lbs_cur[i] .= lbs[i]
+        ubs_cur[i] .= ubs[i]
+    end  
+end
+
+@non_differentiable update_bounds!(lbs, ubs, lbs_cur, ubs_cur, ll, uu, i)
 
 
 """
@@ -141,12 +160,10 @@ kwargs:
 returns:
     SymbolicIntervalDiff bounding the output of the network
 """
-function NV.forward_network(solver::aCROWN, net::NN, input_set::Hyperrectangle, αs; 
-                            from_layer=1, lbs=nothing, ubs=nothing, printing=false) where NN<:Union{NV.Network, NV.NetworkNegPosIdx}
-    best_lbs = isnothing(lbs) ? [] : lbs
-    best_ubs = isnothing(ubs) ? [] : ubs
-    lbs = []
-    ubs = []
+function NV.forward_network(solver::aCROWN, net::NN, input_set::Hyperrectangle{N}, αs, lbs::Vector{Vector{N}}=Vector{Vector{N}}(), ubs::Vector{Vector{N}}=Vector{Vector{N}}(); 
+                            from_layer=1, printing=false) where {N<:Number,NN<:NV.AbstractNetwork{N}}
+    lbs_cur = Vector{Vector{N}}()
+    ubs_cur = Vector{Vector{N}}()
     
     if solver.separate_alpha
         half = Int(floor(0.5*length(αs)))
@@ -159,47 +176,51 @@ function NV.forward_network(solver::aCROWN, net::NN, input_set::Hyperrectangle, 
 
     # define them here, s.t. we can reference them in the return statement
     # the remainder of the code would also work if we didn't define them here at all
-    Zl = SymbolicBound(I, 0.)
-    Zu = SymbolicBound(I, 0.)
+    Zl = SymbolicBound(net.layers[end].weights, net.layers[end].bias)
+    Zu = SymbolicBound(net.layers[end].weights, net.layers[end].bias)
     # careful with from_layer and i!!!
-    for (i, l) in enumerate(net.layers[from_layer:end])
+    for (i::Int, l) in enumerate(net.layers[from_layer:end])
         if printing
             println("Layer ", from_layer + i-1)
         end
 
         nn_part = NN(net.layers[from_layer:i])
         
-        Zl = backward_network(solver, nn_part, lbs[1:i-1], ubs[1:i-1], input_set, αsₗ[1:i])
-        Zu = backward_network(solver, nn_part, lbs[1:i-1], ubs[1:i-1], input_set, αsᵤ[1:i], upper=true)
+        Zl = backward_network(solver, nn_part, lbs_cur[1:i-1], ubs_cur[1:i-1], input_set, αsₗ[1:i])
+        Zu = backward_network(solver, nn_part, lbs_cur[1:i-1], ubs_cur[1:i-1], input_set, αsᵤ[1:i], upper=true)
 
         ll, lu = bounds(Zl.Λ, Zl.γ, low(input_set), high(input_set))
         ul, uu = bounds(Zu.Λ, Zu.γ, low(input_set), high(input_set))
         
-        lbs = vcat(lbs, [ll])
-        ubs = vcat(ubs, [uu])
+        lbs_cur = vcat(lbs_cur, [ll])
+        ubs_cur = vcat(ubs_cur, [uu])
         
         if solver.use_tightened_bounds
             # keep upper approach for better derivatives, need lower approach
-            # for continuing with tighter bounds
-            ChainRulesCore.ignore_derivatives() do
-                if length(best_lbs) < i
-                    push!(best_lbs, ll)
-                    push!(best_ubs, uu)
-                else
-                    best_lb = max.(lbs[i], best_lbs[i])
-                    best_ub = min.(ubs[i], best_ubs[i])
-                    best_lbs[i] .= best_lb
-                    best_ubs[i] .= best_ub
-                    lbs[i] = best_lb
-                    ubs[i] = best_ub
-                end
-            end
+            # for continuing with tighter bounds (update_bounds! is marked as non-differentiable)
+            update_bounds!(lbs, ubs, lbs_cur, ubs_cur, ll, uu, i)
         end
     end
 
-    return SymbolicIntervalDiff(Zl.Λ, Zl.γ, Zu.Λ, Zu.γ, low(input_set), high(input_set), lbs, ubs)
+    return SymbolicIntervalDiff(Zl.Λ, Zl.γ, Zu.Λ, Zu.γ, low(input_set), high(input_set), lbs_cur::Vector{Vector{N}}, ubs_cur::Vector{Vector{N}})
 end
 
+
+function initialize_params_bounds(solver::aCROWN, net, degree::N, input::Hyperrectangle) where N <: Number
+    n_neurons = sum(length(l.bias) for l in net.layers)
+    α = zeros(n_neurons)
+    αs = vec2propagation(net, α)
+    # for initialization separate_alpha isn't needed
+    isolver = aCROWN(initialize=true, separate_alpha=false)
+    ŝ = NV.forward_network(isolver, net, input, αs)
+
+    α0 = reduce(vcat, vec.(αs))
+    if solver.separate_alpha
+        α0 = [α0; α0]
+    end
+
+    return α0, ŝ.lbs, ŝ.ubs
+end
 
 """
 Initialize parameters for slopes of lower ReLU relaxations.
@@ -214,20 +235,10 @@ returns:
     vector of initial slopes
 """
 function initialize_params(solver::aCROWN, net, degree::N, input::Hyperrectangle; return_bounds=false) where N <: Number
-    n_neurons = sum(length(l.bias) for l in net.layers)
-    α = zeros(n_neurons)
-    αs = vec2propagation(net, α)
-    # for initialization separate_alpha isn't needed
-    isolver = aCROWN(initialize=true, separate_alpha=false)
-    ŝ = NV.forward_network(isolver, net, input, αs)
-
-    α0 = reduce(vcat, vec.(αs))
-    if solver.separate_alpha
-        α0 = [α0; α0]
-    end
+    α0, lbs, ubs = initialize_params_bounds(solver, net, degree, input)
     
     if return_bounds
-        return α0, ŝ.lbs, ŝ.ubs
+        return α0, lbs, ubs
     else
         return α0
     end
@@ -254,7 +265,8 @@ kwargs:
     lbs - (defaults to nothing) possible to use precomputed bounds
     ubs - (defaults to nothing) possible to use precomputed bounds
 """
-function propagate(solver::aCROWN, net::NN, input::Hyperrectangle, α; printing=false, lbs=nothing, ubs=nothing) where NN<:Union{NV.Network, NV.NetworkNegPosIdx}
+function propagate(solver::aCROWN, net::NN, input::Hyperrectangle, α, lbs::Vector{Vector{N}}=Vector{Vector{N}}(), ubs::Vector{Vector{N}}=Vector{Vector{N}}(); 
+                   printing=false) where {N<:Number, NN<:NV.AbstractNetwork{N}}
     if solver.separate_alpha
         @assert length(α) % 2 == 0 "If solver.separate_alpha, then only even lengths of α are allowed."
         half = Int(0.5*length(α))
@@ -263,7 +275,7 @@ function propagate(solver::aCROWN, net::NN, input::Hyperrectangle, α; printing=
         αs = vec2propagation(net, α)
     end
     
-    s = NV.forward_network(solver, net, input, αs, lbs=lbs, ubs=ubs)
+    s = NV.forward_network(solver, net, input, αs, lbs, ubs)
     
     ll, lu = bounds(s.Λ, s.λ, s.lb, s.ub)
     ul, uu = bounds(s.Γ, s.γ, s.lb, s.ub)
@@ -277,18 +289,15 @@ function propagate(solver::aCROWN, net::NN, input::Hyperrectangle, α; printing=
 end
 
 
-function optimise_bounds(solver::aCROWN, net::NN, input_set::Hyperrectangle; opt=nothing,
-                         params=OptimisationParams(), print_result=false) where NN<:Union{NV.Network, NV.NetworkNegPosIdx}
-    opt = isnothing(opt) ? OptimiserChain(Adam(), Projection(0., 1.)) : opt
-
-    α0, lbs0, ubs0 = initialize_params(solver, net, 1, input_set, return_bounds=true)
+function optimise_bounds(solver::aCROWN, net::NN, input_set::Hyperrectangle; opt=OptimiserChain(Adam(), Projection(0., 1.)),
+                         params::OptimisationParams=OptimisationParams(), print_result=false) where NN<:Union{NV.Network, NV.NetworkNegPosIdx}
+    α0, lbs0, ubs0 = initialize_params_bounds(solver, net, 1, input_set)
 
     if solver.use_tightened_bounds
-        optfun = α -> propagate(solver, net, input_set, α, lbs=lbs0, ubs=ubs0)
+        optfun = α -> propagate(solver, net, input_set, α, lbs0, ubs0)
     else
         optfun = α -> propagate(solver, net, input_set, α)
     end
-
 
     res = optimise(optfun, opt, α0, params=params)
 
