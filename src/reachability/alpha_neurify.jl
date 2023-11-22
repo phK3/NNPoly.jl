@@ -55,7 +55,8 @@ function forward_act(solver::AlphaNeurify, L::NV.LayerNegPosIdx{NV.ReLU}, input,
         aₗ = [if l >= 0 1. elseif u <= 0 0. else αᵢ end for (l, u, αᵢ) in zip(ll, lu, α)]
     end
 
-    aᵤ = [NV.relaxed_relu_gradient(ulᵢ, uuᵢ) for (ulᵢ, uuᵢ) in zip(ul, uu)]
+    #aᵤ = [NV.relaxed_relu_gradient(ulᵢ, uuᵢ) for (ulᵢ, uuᵢ) in zip(ul, uu)]
+    aᵤ = relaxed_relu_gradient_vectorized(ul, uu)
     # aᵤ = relaxed_relu_gradient.(ul, uu)
     bᵤ = -ul
 
