@@ -52,7 +52,14 @@ function forward_act(solver::AlphaNeurify, L::NV.LayerNegPosIdx{NV.ReLU}, input,
             aₗ
         end
     else
-        aₗ = [if l >= 0 1. elseif u <= 0 0. else αᵢ end for (l, u, αᵢ) in zip(ll, lu, α)]
+        crossing = @ignore_derivatives (ll .< 0) .& (lu .> 0)
+        fixed_active = @ignore_derivatives ll .>= 0
+
+        # need to clamp α value, since we can't use projection for whole optimisation values, when we
+        # polynomially relax the first layer
+        # aₗ = crossing .* clamp.(α, 0, 1) .+ fixed_active
+        aₗ = crossing .* clamp.(α, zero(eltype(α)), one(eltype(α))) .+ fixed_active
+        #aₗ = [if l >= 0 1. elseif u <= 0 0. else αᵢ end for (l, u, αᵢ) in zip(ll, lu, α)]
     end
 
     #aᵤ = [NV.relaxed_relu_gradient(ulᵢ, uuᵢ) for (ulᵢ, uuᵢ) in zip(ul, uu)]
