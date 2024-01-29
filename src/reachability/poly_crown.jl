@@ -2,6 +2,7 @@
 @with_kw struct PolyCROWN <: NV.Solver 
     separate_alpha = true
     use_tightened_bounds = true
+    bernstein_bounds = false
     # number of layers for polynomial relaxation
     poly_layers = 1
     # solver for polynomial part
@@ -11,8 +12,8 @@
 end
 
 
-function PolyCROWN(psolver ; separate_alpha=true, use_tightened_bounds=true, initialize=false, poly_layers=1)
-    return PolyCROWN(separate_alpha, use_tightened_bounds, poly_layers, psolver, 
+function PolyCROWN(psolver ; separate_alpha=true, use_tightened_bounds=true, initialize=false, poly_layers=1, bernstein_bounds=false)
+    return PolyCROWN(separate_alpha, use_tightened_bounds, bernstein_bounds, poly_layers, psolver, 
                      aCROWN(separate_alpha=separate_alpha, use_tightened_bounds=use_tightened_bounds, initialize=initialize))
 end
 
@@ -93,8 +94,15 @@ function NV.forward_network(solver::PolyCROWN, net_poly::NN, net::NN, input_set:
             u_poly = exact_addition(affine_map(max.(0, Zu.Λ), Uᵤ, Zu.γ), linear_map(min.(0, Zu.Λ), Lᵤ))
         end
         
-        ll, lu = bounds(l_poly)
-        ul, uu = bounds(u_poly)
+        println("call: solver.bernstein_bounds = ", solver.bernstein_bounds)
+        if solver.bernstein_bounds
+            println("bernstein!!!")
+            ll, lu = bernstein_bounds(l_poly)
+            ul, uu = bernstein_bounds(u_poly)
+        else
+            ll, lu = bounds(l_poly)
+            ul, uu = bounds(u_poly)
+        end
         
         lbs = vcat(lbs, [ll])
         ubs = vcat(ubs, [uu])
@@ -159,7 +167,7 @@ function initialize_params(solver::PolyCROWN, net_poly, net, degree::N, input::D
     α = zeros(n_neurons)
     αs = vec2propagation(net, α)
     # for initialization separate_alpha isn't needed
-    isolver = PolyCROWN(psolver, initialize=true, separate_alpha=false)
+    isolver = PolyCROWN(psolver, initialize=true, separate_alpha=false, bernstein_bounds=solver.bernstein_bounds)
     
     ŝ = NV.forward_network(isolver, net_poly, net, input, αps, αs);
 

@@ -15,6 +15,7 @@ include("optimisation_loop.jl")
 
 include("polynomial_representation/sparse_polynomial.jl")
 include("polynomial_representation/autodiff_speedup.jl")
+include("polynomial_representation/bernstein_conversion.jl")
 include("reachability/autodiff_speedup.jl")
 
 include("polynomial_optimization.jl")
