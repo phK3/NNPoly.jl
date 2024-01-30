@@ -2,7 +2,8 @@ module NNPoly
 
 using LazySets, DynamicPolynomials, RecipesBase, DataStructures, NeuralVerification,
         Parameters, LinearAlgebra, Zygote, SparseArrays, ChainRulesCore, Combinatorics,
-        Optimisers, ComponentArrays, ImplicitDifferentiation, CSV, JLD2, VnnlibParser
+        Optimisers, ComponentArrays, ImplicitDifferentiation, CSV, JLD2, VnnlibParser, 
+        OnnxReader, Flux
 const NV = NeuralVerification
 
 # Zygote also uses nothing for zero gradient, so need this to be defined
@@ -11,6 +12,7 @@ Base.:*(x, a::Nothing) = zero(x)
 Base.:-(x::Nothing) = nothing  # can't really get zero(nothing)
 
 include("utils.jl")
+include("network.jl")
 include("optimisation_loop.jl")
 
 include("polynomial_representation/sparse_polynomial.jl")
