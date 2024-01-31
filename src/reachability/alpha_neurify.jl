@@ -12,13 +12,13 @@ function forward_linear(solver::AlphaNeurify, L::NV.LayerNegPosIdx, input)
     Γ = L.W_neg * input.Λ .+ L.W_pos * input.Γ
     γ = L.W_neg * input.λ .+ L.W_pos * input.γ .+ L.bias
 
-    return SymbolicIntervalDiff(Λ, λ, Γ, γ, input.lb, input.ub, input.lbs, input.ubs)
+    return SymbolicIntervalDiff(Λ, λ, Γ, γ, input.domain, input.lbs, input.ubs)
 end
 
 
 function forward_act(solver::AlphaNeurify, L::NV.LayerNegPosIdx{NV.ReLU}, input, α)
-    ll̂, lû = bounds(input.Λ, input.λ, input.lb, input.ub)
-    ul̂, uû = bounds(input.Γ, input.γ, input.lb, input.ub)
+    ll̂, lû = bounds(input.Λ, input.λ, input.domain)
+    ul̂, uû = bounds(input.Γ, input.γ, input.domain)
 
     if solver.use_tightened_bounds
         # the input.lbs or input.ubs are constants, we should be able to ignore them for the gradient
@@ -79,7 +79,7 @@ function forward_act(solver::AlphaNeurify, L::NV.LayerNegPosIdx{NV.ReLU}, input,
         input.ubs[L.index] .= uu
     end
 
-    return SymbolicIntervalDiff(Λ, λ, Γ, γ, input.lb, input.ub, input.lbs, input.ubs)
+    return SymbolicIntervalDiff(Λ, λ, Γ, γ, input.domain, input.lbs, input.ubs)
 end
 
 
