@@ -29,6 +29,19 @@ function relax_relu_crown_quad_lower(l, u)
 end
 
 
+function relax_relu_crown_quad_lower_matrix(l, u)
+    inactive = (u .<= 0)
+    active = (l .>= 0)
+
+    c₁ = ifelse.(inactive, zero(eltype(l)), 
+            ifelse.(active, one(eltype(l)), 
+                ifelse.(u .>= .-2 .* l, one(eltype(l)), ifelse.((.-l .< u) .& (u .< .-2 .* l), .- l .* u ./ (u .^2 .- l .* u), zero(eltype(l))))))
+    c₂ = ifelse.(active .| inactive, zero(eltype(l)), ifelse.((.-l .< u) .& (u .< .-2 .* l), u ./ (u.^2 .- l .* u), zero(eltype(l))))
+
+    return hcat(zero(l), c₁, c₂)
+end
+
+
 """
 Returns the monomial coefficients cᵢ of the quadratic upper relaxation of a
 ReLU neuron given concrete lower and upper bounds on its input.
@@ -58,11 +71,25 @@ function relax_relu_crown_quad_upper(l, u)
     c = θ
 
     # don't want quadratic terms with large coefficients!
-    if a > 10
-        a = 0
-        b = u / (u - l)
-        c = -l*b
-    end
+    # TODO: do we need this???
+    #if a > 10
+    #    a = 0
+    #    b = u / (u - l)
+    #    c = -l*b
+    #end
 
     return [c, b, a]
+end
+
+
+function relax_relu_crown_quad_upper_matrix(l, u)
+    w2 = (l .- u).^2
+    inactive = (u .<= 0)
+    active = (l .>= 0)
+    cond = (.-l .<= u)
+    c₀ = ifelse.(inactive .| active, zero(eltype(l)), ifelse.(cond, .- l .* u.^2, l.^2 .* u) ./ w2)
+    c₁ = ifelse.(inactive, zero(eltype(l)), ifelse.(active, one(eltype(l)), ifelse.(cond, l.^2 .+ u.^2, .-2 .* l .* u) ./ w2)) 
+    c₂ = ifelse.(inactive .| active, zero(eltype(l)), ifelse.(cond, .- l, u) ./ w2)
+
+    return hcat(c₀, c₁, c₂)
 end
