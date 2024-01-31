@@ -188,13 +188,20 @@ function initialize_params_bounds(solver::PolyCROWN, net, degree::N, input) wher
                                 common_generators=psolver.common_generators)
     ŝ = forward_linear(ipsolver, net[1], input)
 
+    # don't know the sizes of these arrays beforehand, so just let them empty. Real numbers get pushed during initialization.
+    rs = Vector{Int}()
+    cs = Vector{Int}()
+    symmetric_factor = Vector{Int}()
+    unique_idxs = Vector{Int}()
+    duplicate_idxs = Vector{Int}()
+
     # for first layer, bounds from s.Low and s.Up are the same
     l, u = bounds(ŝ.poly_interval.Low)
 
-    s_poly = forward_act_stub(ipsolver, net[1], ŝ, l, u)
+    s_poly = forward_act_stub(ipsolver, net[1], ŝ, l, u, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs)
     
     lbs_lin, ubs_lin = initialize_params_bounds(solver.lin_solver, net[2:end], 1, s_poly)
-    return ŝ, l, u, lbs_lin, ubs_lin
+    return ŝ, l, u, lbs_lin, ubs_lin, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs
 end
 
 
@@ -260,7 +267,7 @@ The method utilises that propagating the input through the first linear layer al
 regardless of α-parameters defining the shape of the relaxation of the activation function.
 Therefore, we can precompute that set and also precompute its bounds and only have to propagate that through the ReLU layer.
 """
-function forward_act_stub(solver::DiffNNPolySym, L::CROWNLayer{NV.ReLU, MN, BN, AN}, input::DiffPolyInterval, l, u) where {MN,BN,AN}
+function forward_act_stub(solver::DiffNNPolySym, L::CROWNLayer{NV.ReLU, MN, BN, AN}, input::DiffPolyInterval, l, u, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs) where {MN,BN,AN}
     s = input.poly_interval
     if solver.init && solver.init_method == :CROWNQuad
         # CROWNQuad initialisation
@@ -275,12 +282,16 @@ function forward_act_stub(solver::DiffNNPolySym, L::CROWNLayer{NV.ReLU, MN, BN, 
         cᵤ = get_upper_polynomial_shift(l, u, 2, L.α[:, :, 2])
     end
 
+    L̂, Û = quad_prop_common!(cₗ, cᵤ, s.Low, s.Up, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs, init=solver.init)
+
+    #=
     if solver.common_generators
         L̂, Û = quad_prop_common(cₗ, cᵤ, s.Low, s.Up, l, u, l, u)
     else
         L̂ = fast_quad_prop(cₗ[:,3], cₗ[:,2], cₗ[:,1], s.Low, l, u)
         Û = fast_quad_prop(cᵤ[:,3], cᵤ[:,2], cᵤ[:,1], s.Up, l, u)
     end
+    =#
 
     return DiffPolyInterval(L̂, Û, input.lbs, input.ubs)
 end
@@ -291,13 +302,14 @@ function optimise_bounds(solver::PolyCROWN, net::Chain, input_set::Hyperrectangl
     # TODO: implement method for Chain
     s = initialize_symbolic_domain(solver, net[1:solver.poly_layers], input_set)
 
+    # TODO: is there some better way of returning all those precomputed values?
     # bounds before activation in first layer are just interval bounds and don't change
     # with different α parameters, so we can just reuse ŝ (the reachable set after the 1st linear layer),
     # l and u (the bounds after the 1st linear layer) throughout the optimization loop
-    ŝ, l, u, lbs, ubs = initialize_params_bounds(solver, net, 2, s)
+    ŝ, l, u, lbs, ubs, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs = initialize_params_bounds(solver, net, 2, s)
 
     optfun = m -> begin
-        s_poly = forward_act_stub(solver.poly_solver, m[1], ŝ, l, u)
+        s_poly = forward_act_stub(solver.poly_solver, m[1], ŝ, l, u, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs)
         s_crown = NV.forward_network(solver.lin_solver, m[2:end], s_poly, lbs, ubs)
 
         ll, lu = bounds(s_crown.Λ, s_crown.λ, s_poly)

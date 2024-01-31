@@ -106,35 +106,7 @@ Removes duplicate monomial entries by summing up monomial coefficients for
     monomials with same exponents.
 """
 function compact(sp::SparsePolynomial{N,M}) where {N,M}
-    #=# permutation for lexicographically sorting the columns of the exponent matrix
-    p = @ignore_derivatives sortperm(collect(eachcol(sp.E)))
-
-    # apply the permutation to the columns
-    E = sp.E[:, p]
-    G = sp.G[:, p]
-
-    # only retain unique columns (no duplicates)
-    Ê = unique(E, dims=2)  # could skip this and set Ê = E[unique_mask[unique_mask .!= 0], :]
-    m = size(Ê, 2)
-    n = size(G, 1)
-
-    # TODO: maybe write rrule nonetheless, so we only need to store indices unique_mask[unique_mask .!= 0]
-    # (the indices of unique exponents)
-
-    # 1 iff current col is different from col before
-    unique_mask = [1; [E[:,i] != E[:,i-1] for i in 2:size(E,2)]]
-    # now v has nⱼ entries of index j iff column j of Ê appears nⱼ times in E
-    col_idxs = cumsum(unique_mask)
-
-    # sparse matrix because only exactly one entry per row
-    # every row has at least one 1 as each col of G is used exactly once -> I = 1:size(G,2)
-    # sum over duplicate columns -> the column-indices specified in v
-    # all columns get added up with weight 1
-    # S has number of rows equal to number of columns of G -> size(G, 2)
-    # S has number of columns equal to number of columns of Ê -> size(Ê, 2)
-    S = sparse(1:size(G,2), col_idxs, 1, size(G, 2), size(Ê, 2))=#
-
-    d = @ignore_derivatives duplicates(eachcol(sp.E))
+    #=d = @ignore_derivatives duplicates(eachcol(sp.E))
     S = @ignore_derivatives compactification_matrix(sp.G, d)
     unique_idxs = @ignore_derivatives first.(values(d))
 
@@ -155,6 +127,77 @@ function compact(sp::SparsePolynomial{N,M}) where {N,M}
         n_dim = size(Ĝ, 1)
         Ĝ = zeros(n_dim, 1)
         Ê = zeros(M, length(sp.ids), 1)
+    end
+
+    return SparsePolynomial(Ĝ, Ê, sp.ids)=#
+
+    unique_idxs, duplicate_idxs = compact_idxs(sp)
+    return compact(sp, unique_idxs, duplicate_idxs, remove_zeros=false)
+end
+
+
+"""
+Calculate indices of coefficients of unique monomials and vector mapping duplicate monomials to 
+an occurence of the same monomial in a compacted version of the polyonmial.
+
+args:
+    sp - the SparsePolynomial to be compacted
+
+returns:
+    unique_idxs - vector s.t. sp.E[:,unique_idxs] contains every monomial occuring in sp exactly once
+    duplicate_idxs - vector s.t. duplicate_idxs[i] = duplicate_idxs[j] = k, iff. the i-th and k-th coefficients
+                     are for the same monomial and this monomial has index k in the compacted representation. 
+"""
+function compact_idxs(sp::SparsePolynomial{N,M}) where {N,M}
+    d = @ignore_derivatives duplicates(eachcol(sp.E))
+    unique_idxs = @ignore_derivatives first.(values(d))
+
+    duplicate_idxs = @ignore_derivatives begin
+        idxs = zeros(M, size(sp.E, 2))
+        for (i, v_list) in enumerate(collect(values(d)))
+            for v in v_list
+                idxs[v] = i
+            end
+        end
+        idxs
+    end
+
+    return unique_idxs, duplicate_idxs
+end
+
+
+"""
+Removes duplicate monomial coefficients by summing up coefficients for monomials with the same exponents.
+
+If indices mapping duplicate coefficients to a single coefficient are already computed, these coefficients
+can be directly passed.
+
+args:
+    sp - SparsePolynomial to be compacted
+    unique_idxs - vector of indices, s.t. sp.E[:,unique_idxs] contains each monomial coefficient exactly once
+    duplicate_idxs - vector of indices mapping each monomial in sp to a position in the compact representation of sp.E[:,unique_idxs]
+            i.e. if idxs[i] = j, then monomial i will be mapped to position j in the resulting polynomial.
+            (it will have idxs[i] = idxs[k] = j, if i,k are duplicates)
+
+kwargs:
+    remove_zeros - whether to remove monomials with all-zero coefficients
+"""
+function compact(sp::SparsePolynomial, unique_idxs, duplicate_idxs; remove_zeros=false)
+    Ê = sp.E[:, unique_idxs]
+    Ĝ = Flux.NNlib.scatter(+, sp.G, duplicate_idxs)
+
+    if remove_zeros
+        non_zeros = vec(sum(abs.(Ĝ), dims=1) .!= 0)
+        Ê = Ê[:, non_zeros]
+        Ĝ = Ĝ[:, non_zeros]
+
+        if size(Ĝ, 2) == 0
+            # all terms were zero
+            # -> create constant zero SparsePolynomial
+            n_dim = size(Ĝ, 1)
+            Ĝ = zeros(n_dim, 1)
+            Ê = zeros(M, length(sp.ids), 1)
+        end
     end
 
     return SparsePolynomial(Ĝ, Ê, sp.ids)

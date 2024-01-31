@@ -205,3 +205,103 @@ function quad_prop_common(cₗ, cᵤ, spl, spu, ll, lu, ul, uu)
 
     return L̂, Û
 end
+
+
+"""
+Propagates lower and upper symbolic polynomials through different lower and upper relaxations,
+but ensures that both share the same exponent matrix.
+
+For faster execution, indices used for multiplication and compactification of the polynomials are 
+calculated only when init=true and are set in-place.
+If the are re-submitted when init=false they are directly used and not calculated again.
+
+args:
+    cₗ - coefficients of lower relaxation
+    cᵤ - coefficients of upper relaxation
+    spl - lower polynomial
+    spu - upper polynomial
+    rs - row-indices of multiplication
+    cs - column-indices for multiplication
+    symmetric_factor - factor for multiplying entries on the diagonal of the triangular matrix
+    unique_idxs - indices of unique monomials for compactification
+    duplicate_idxs - indices mapping duplicate monomials to unique monomials in compactification
+
+kwargs:
+    init - initialize indices in-place 
+"""
+function quad_prop_common!(cₗ, cᵤ, spl::SparsePolynomial{N,M}, spu::SparsePolynomial{N,M}, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs; init=false) where {N,M}
+    n, m = size(spl.G)
+    sp = SparsePolynomial([spl.G; spu.G], spl.E, spl.ids)
+    coeffs = [cₗ; cᵤ]
+
+    a = coeffs[:,3]
+    b = coeffs[:,2]
+    c = coeffs[:,1]
+
+    if init
+        @ignore_derivatives begin
+            r̂s, ĉs = get_triangular_indices(m, m)
+            push!(rs, r̂s...)
+            push!(cs, ĉs...)
+
+            push!(symmetric_factor, ifelse.((rs .== cs)', 1, 2)...)
+        end
+    end
+
+    # square polynomial
+    Ĝ = sp.G[:,rs] .* sp.G[:, cs] .* symmetric_factor'
+    Ê = sp.E[:,rs] .+ sp.E[:,cs]
+
+    
+    G_lin = b .* sp.G
+    sp = SparsePolynomial([c G_lin a .* Ĝ], [zeros(M, length(sp.ids)) sp.E Ê], sp.ids)
+
+    if init
+        @ignore_derivatives begin
+            unique_idxs_init, duplicate_idxs_init = compact_idxs(sp)
+            push!(unique_idxs, unique_idxs_init...)
+            push!(duplicate_idxs, duplicate_idxs_init...)
+        end
+    end
+
+    ŝp = compact(sp, unique_idxs, duplicate_idxs, remove_zeros=false)
+
+    L̂ = SparsePolynomial(ŝp.G[1:n,:], ŝp.E, ŝp.ids)
+    Û = SparsePolynomial(ŝp.G[n+1:end,:], ŝp.E, ŝp.ids)
+
+    return L̂, Û
+end
+
+
+"""
+Calculates row and column indices s.t. each pair (r,c) is the index of a non-zero entry in an upper triangular matrix.
+
+!!! right now only m < n is supported !!!
+
+args:
+    m - number of rows of the upper triangular matrix
+    n - number of columns of the upper triangular matrix
+
+returns
+    rs - vector of row-idxs of non-zero entries in an upper triangular matrix
+    cs - vector of column-idxs of non-zero entries in an upper triangular matrix
+"""
+function get_triangular_indices(m, n)
+    @assert m <= n "Only works for m ≤ n, but m = $m and n = $n !!!"
+    # upper triangular part + full part when n > m
+    sz = m*(m+1)÷2 + (n-m)*m
+    # initializing with undef saves time to overwrite with zeros
+    rs = Vector{Int}(undef, sz)
+    cs = Vector{Int}(undef, sz)
+    
+    cnt = 1
+    for i in 1:m
+        for j in i:n
+            rs[cnt] = i
+            cs[cnt] = j
+            cnt += 1
+        end
+    end
+    
+    return rs, cs
+end
