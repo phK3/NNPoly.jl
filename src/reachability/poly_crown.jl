@@ -17,6 +17,15 @@ function PolyCROWN(psolver ; separate_alpha=true, use_tightened_bounds=true, ini
 end
 
 
+# TODO: move to DiffNNPolySym part
+function forward_linear(solver::DiffNNPolySym, L::CROWNLayer, input::DiffPolyInterval)
+    if solver.common_generators
+        Low, Up = interval_map_common(min.(0, L.weights), max.(0, L.weights), input.poly_interval.Low, input.poly_interval.Up, L.bias)
+    else
+        Low, Up = interval_map(min.(0, L.weights), max.(0, L.weights), input.poly_interval.Low, input.poly_interval.Up, L.bias)
+    end
+    return DiffPolyInterval(Low, Up, input.lbs, input.ubs)
+end
 
 
 """
@@ -31,8 +40,8 @@ args:
     αs_poly - parameters for polynomial relaxation (if separate_alpha, then even length)
     αs - parameters for linear relaxation (if separate_alpha, then even length)
 """
-function NV.forward_network(solver::PolyCROWN, net_poly::NN, net::NN, input_set::DiffPolyInterval{N}, αs_poly, αs; 
-                            from_layer=1, lbs=nothing, ubs=nothing, printing=false) where {NN<:Union{NV.Network, NV.NetworkNegPosIdx}, N<:Number}
+function NV.forward_network(solver::PolyCROWN, net_poly::NN, net::NN, input_set::DiffPolyInterval{N}; 
+                            from_layer=1, lbs, ubs, printing=false) where {NN<:Union{NV.Network, NV.NetworkNegPosIdx}, N<:Number}
     # don't store bounds for polynomial layers in lbs/best_lbs, they are already
     # stored in the DiffPolyInterval
     nₗ = length(net_poly.layers)
@@ -42,23 +51,7 @@ function NV.forward_network(solver::PolyCROWN, net_poly::NN, net::NN, input_set:
     ubs = Vector{Vector{N}}()
 
     psolver = solver.poly_solver
-    lsolver = solver.lin_solver
-    
-    if solver.separate_alpha
-        half = Int(floor(0.5*length(αs)))
-        αsₗ = αs[1:half]
-        αsᵤ = αs[half+1:end]
-        
-        half_poly = Int(floor(0.5*length(αs_poly)))
-        αs_polyₗ = αs_poly[1:half_poly]
-        αs_polyᵤ = αs_poly[half_poly+1:end]
-    else
-        αsₗ = αs
-        αsᵤ = αs
-        αs_polyₗ = αs_poly
-        αs_polyᵤ = αs_poly
-    end
-    
+    lsolver = solver.lin_solver  
     
     sₗ = NV.forward_network(psolver, net_poly, input_set, αs_polyₗ)
     sᵤ = NV.forward_network(psolver, net_poly, input_set, αs_polyᵤ)
@@ -125,10 +118,8 @@ function NV.forward_network(solver::PolyCROWN, net_poly::NN, net::NN, input_set:
 end
 
 
-function initialize_symbolic_domain(solver::PolyCROWN, net::NV.NetworkNegPosIdx, input::AbstractHyperrectangle)
-    # for compatibility with vnnlib.jl
-    net_poly = NV.NetworkNegPosIdx(net.layers[1:solver.poly_layers])
-    return initialize_symbolic_domain(solver.poly_solver, net_poly, input)
+function initialize_symbolic_domain(solver::PolyCROWN, net::Chain, input::AbstractHyperrectangle)
+    return initialize_symbolic_domain(solver.poly_solver, net[1:solver.poly_layers], input)
 end
 
 
@@ -187,21 +178,29 @@ function initialize_params(solver::PolyCROWN, net::NV.NetworkNegPosIdx, degree::
 end
 
 
+function initialize_params_bounds(solver::PolyCROWN, net, degree::N, input) where N<:Number
+    psolver = solver.poly_solver
+    # just copy the solver, but set init=true
+    ipsolver = DiffNNPolySym(truncation_terms=psolver.truncation_terms,
+                                separate_relaxations=psolver.separate_relaxations,
+                                relaxations=psolver.relaxations, splitting_depth=psolver.splitting_depth,
+                                init=true, save_bounds=psolver.save_bounds,
+                                common_generators=psolver.common_generators)
+    ŝ = forward_linear(ipsolver, net[1], input)
+
+    # for first layer, bounds from s.Low and s.Up are the same
+    l, u = bounds(ŝ.poly_interval.Low)
+
+    s_poly = forward_act_stub(ipsolver, net[1], ŝ, l, u)
+    
+    lbs_lin, ubs_lin = initialize_params_bounds(solver.lin_solver, net[2:end], 1, s_poly)
+    return ŝ, l, u, lbs_lin, ubs_lin
+end
+
+
 function propagate(solver::PolyCROWN, net_poly::NV.NetworkNegPosIdx, 
                     net::NV.NetworkNegPosIdx, input::DiffPolyInterval, α_poly, α; printing=false, 
                     lbs=nothing, ubs=nothing)
-    if solver.separate_alpha
-        @assert length(α) % 2 == 0 "If solver.separate_alpha, then only even lengths of α are allowed."
-        @assert length(α_poly) % 2 == 0 "If solver.separate_alpha, then only even lengths of α_poly are allowed"
-        half = Int(0.5*length(α))
-        half_poly = Int(0.5*length(α_poly))
-        αs = [vec2propagation(net, α[1:half]); vec2propagation(net, α[half+1:end])]
-        αps = [vec2propagation(net_poly, 2, α_poly[1:half_poly]); vec2propagation(net_poly, 2, α_poly[half_poly+1:end])]
-    else
-        αs = vec2propagation(net, α)
-        αps = vec2propagation(net_poly, 2, α_poly)
-    end
-
     s = NV.forward_network(solver, net_poly, net, input, αps, αs, lbs=lbs, ubs=ubs);
 
     ll, lu = bounds(s.poly_interval.Low)
@@ -229,6 +228,90 @@ function propagate(solver::PolyCROWN, net::NV.NetworkNegPosIdx, input::DiffPolyI
     αp = α[1:nₚ]
     αl = α[nₚ+1:end]
     return propagate(solver, net_poly, net, input, αp, αl, printing=printing, lbs=lbs, ubs=ubs)
+end
+
+
+function propagate(solver::PolyCROWN, net::Chain, input::DiffPolyInterval, lbs, ubs; printing=false)
+    ŝ = forward_linear(solver.poly_solver, net[1], input)
+
+    # for first layer, bounds from s.Low and s.Up are the same
+    l, u = bounds(ŝ.Low)
+
+    s_poly = forward_act_stub(solver.poly_solver, net[1], ŝ, l, u)
+    s_crown = NV.forward_network(solver.lin_solver, m[2:end], s_poly, lbs, ubs)
+
+    ll, lu = bounds(s_crown.Λ, s_crown.λ, s_poly)
+    ul, uu = bounds(s_crown.Γ, s_crown.γ, s_poly)
+
+    printing && println("lbs = ", ll)
+    printing && println("ubs = ", uu)
+
+    loss = sum(uu .- ll)
+    return loss
+end
+
+
+"""
+Propagates a given DiffPolyInterval with precomputed bounds through the 1st non-linear layer (with ReLU activation function).
+
+Don't use this if you want to propagate through a later non-linear layer (even if before were not ReLU-nonlinearities)!!!
+
+The method utilises that propagating the input through the first linear layer always results in the same reachable set 
+regardless of α-parameters defining the shape of the relaxation of the activation function.
+Therefore, we can precompute that set and also precompute its bounds and only have to propagate that through the ReLU layer.
+"""
+function forward_act_stub(solver::DiffNNPolySym, L::CROWNLayer{NV.ReLU, MN, BN, AN}, input::DiffPolyInterval, l, u) where {MN,BN,AN}
+    s = input.poly_interval
+    if solver.init && solver.init_method == :CROWNQuad
+        # CROWNQuad initialisation
+        cₗ = relax_relu_crown_quad_lower_matrix(l, u)
+        cᵤ = relax_relu_crown_quad_upper_matrix(l, u)
+
+        # CROWNQuad is quadratic relaxation, so set first two params
+        L.α[:, 1:2, 1] .= cₗ[:,2:3]
+        L.α[:, 1:2, 2] .= cᵤ[:,2:3]
+    else
+        cₗ = get_lower_polynomial_shift(l, u, 2, L.α[:, :, 1])
+        cᵤ = get_upper_polynomial_shift(l, u, 2, L.α[:, :, 2])
+    end
+
+    if solver.common_generators
+        L̂, Û = quad_prop_common(cₗ, cᵤ, s.Low, s.Up, l, u, l, u)
+    else
+        L̂ = fast_quad_prop(cₗ[:,3], cₗ[:,2], cₗ[:,1], s.Low, l, u)
+        Û = fast_quad_prop(cᵤ[:,3], cᵤ[:,2], cᵤ[:,1], s.Up, l, u)
+    end
+
+    return DiffPolyInterval(L̂, Û, input.lbs, input.ubs)
+end
+
+
+function optimise_bounds(solver::PolyCROWN, net::Chain, input_set::Hyperrectangle; opt=Flux.OptimiserChain(Flux.Adam()), params=OptimisationParams(), print_results=false)
+    psolver = solver.poly_solver
+    # TODO: implement method for Chain
+    s = initialize_symbolic_domain(solver, net[1:solver.poly_layers], input_set)
+
+    # bounds before activation in first layer are just interval bounds and don't change
+    # with different α parameters, so we can just reuse ŝ (the reachable set after the 1st linear layer),
+    # l and u (the bounds after the 1st linear layer) throughout the optimization loop
+    ŝ, l, u, lbs, ubs = initialize_params_bounds(solver, net, 2, s)
+
+    optfun = m -> begin
+        s_poly = forward_act_stub(solver.poly_solver, m[1], ŝ, l, u)
+        s_crown = NV.forward_network(solver.lin_solver, m[2:end], s_poly, lbs, ubs)
+
+        ll, lu = bounds(s_crown.Λ, s_crown.λ, s_poly)
+        ul, uu = bounds(s_crown.Γ, s_crown.γ, s_poly)
+
+        loss = sum(uu .- ll)
+        return loss
+    end
+
+    res = optimise(optfun, net, opt, params=params)
+
+    print_results && propagate(solver, net, s, lbs, us, printing=true)
+    
+    return res
 end
 
 
