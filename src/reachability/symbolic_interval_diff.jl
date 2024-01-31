@@ -4,15 +4,14 @@
 """
 Linear symbolic interval
 """
-struct SymbolicIntervalDiff{N<:Number}
-    Λ::Matrix{N} # matrix for symbolic lower bound
-    λ::Vector{N} # vector for constant part of symbolic lower bond
-    Γ::Matrix{N} # matrix for symbolic upper bound
-    γ::Vector{N} # vector for constant part of symbolic upper bound
-    lb::Vector{N} # lower bound of input domain
-    ub::Vector{N} # upper bound of input domain
-    lbs::Vector{Vector{N}} # lower bounds for intermediate neurons
-    ubs::Vector{Vector{N}} # upper bounds for intermediate neurons
+struct SymbolicIntervalDiff{N<:Number,MN<:AbstractMatrix{N},VN<:AbstractVector{N},D,LT}
+    Λ::MN # matrix for symbolic lower bound
+    λ::VN # vector for constant part of symbolic lower bond
+    Γ::MN # matrix for symbolic upper bound
+    γ::VN # vector for constant part of symbolic upper bound
+    domain::D
+    lbs::LT # lower bounds for intermediate neurons
+    ubs::LT # upper bounds for intermediate neurons
 end
 
 
@@ -28,15 +27,15 @@ function init_symbolic_interval_diff(net::NV.NetworkNegPosIdx, input::AbstractHy
     lbs = [fill(-Inf, ls) for ls in layer_sizes]
     ubs = [fill( Inf, ls) for ls in layer_sizes]
 
-    return SymbolicIntervalDiff(Λ, λ, Γ, γ, low(input), high(input), lbs, ubs)
+    return SymbolicIntervalDiff(Λ, λ, Γ, γ, input, lbs, ubs)
 end
 
 
 """
 calculates element-wise lower and upper bounds of a function A*x + b for x ∈ [lb, ub]
 """
-#function bounds(A::AbstractMatrix, b::AbstractVector, lb::AbstractVector, ub::AbstractVector)
-function bounds(A::Matrix{N}, b::Vector{N}, lb::Vector{N}, ub::Vector{N}) where N<:Number
+function bounds(A::AbstractMatrix, b::AbstractVector, lb::AbstractVector, ub::AbstractVector)
+#function bounds(A::Matrix{N}, b::Vector{N}, lb::Vector{N}, ub::Vector{N}) where N<:Number
     A⁻ = min.(zero(eltype(A)), A)
     A⁺ = max.(zero(eltype(A)), A)
 
@@ -44,6 +43,11 @@ function bounds(A::Matrix{N}, b::Vector{N}, lb::Vector{N}, ub::Vector{N}) where 
     up  = A⁻ * lb .+ A⁺ * ub .+ b
 
     return low, up
+end
+
+
+function bounds(A::AbstractMatrix, b::AbstractVector, H::Hyperrectangle)
+    return bounds(A, b, low(H), high(H))
 end
 
 

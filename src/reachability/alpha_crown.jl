@@ -159,8 +159,8 @@ kwargs:
 returns:
     SymbolicIntervalDiff bounding the output of the network
 """
-function NV.forward_network(solver::aCROWN, net::Chain, input_set::Hyperrectangle{N}, lbs::LT, ubs::LT;
-                            from_layer=1, printing=false) where {N<:Number, LT}
+function NV.forward_network(solver::aCROWN, net::Chain, input_set, lbs::LT, ubs::LT;
+                            from_layer=1, printing=false) where {LT}
     lbs_cur = LT()
     ubs_cur = LT()
 
@@ -174,14 +174,13 @@ function NV.forward_network(solver::aCROWN, net::Chain, input_set::Hyperrectangl
             println("Layer ", from_layer + i - 1)
         end
 
-        # If we just use Chain(...) we can directly index over that
-        #nn_part = NN(net.layers[from_layer:i])
-
         Zl = backward_network(solver, net[from_layer:i], lbs_cur[1:i-1], ubs_cur[1:i-1], input_set)
         Zu = backward_network(solver, net[from_layer:i], lbs_cur[1:i-1], ubs_cur[1:i-1], input_set, upper=true)
 
-        ll, lu = bounds(Zl.Λ, Zl.γ, low(input_set), high(input_set))
-        ul, uu = bounds(Zu.Λ, Zu.γ, low(input_set), high(input_set))
+        ll, lu = bounds(Zl.Λ, Zl.γ, input_set)
+        ul, uu = bounds(Zu.Λ, Zu.γ, input_set)
+        #ll, lu = bounds(Zl.Λ, Zl.γ, low(input_set), high(input_set))
+        #ul, uu = bounds(Zu.Λ, Zu.γ, low(input_set), high(input_set))
 
         lbs_cur = vcat(lbs_cur, [ll])
         ubs_cur = vcat(ubs_cur, [uu])
@@ -193,11 +192,11 @@ function NV.forward_network(solver::aCROWN, net::Chain, input_set::Hyperrectangl
         end
     end
 
-    return SymbolicIntervalDiff(Zl.Λ, Zl.γ, Zu.Λ, Zu.γ, low(input_set), high(input_set), lbs_cur::LT, ubs_cur::LT)
+    return SymbolicIntervalDiff(Zl.Λ, Zl.γ, Zu.Λ, Zu.γ, input_set, lbs_cur::LT, ubs_cur::LT)
 end
 
 
-function initialize_params_bounds(solver::aCROWN, net, degree::N, input::Hyperrectangle) where N <: Number
+function initialize_params_bounds(solver::aCROWN, net, degree::N, input) where N <: Number
     lbs = [similar(L.bias) for L in net.layers]
     ubs = [similar(L.bias) for L in net.layers]
 
@@ -225,7 +224,7 @@ args:
 returns:
     vector of initial slopes
 """
-function initialize_params(solver::aCROWN, net, degree::N, input::Hyperrectangle; return_bounds=false) where N <: Number
+function initialize_params(solver::aCROWN, net, degree::N, input; return_bounds=false) where N <: Number
     lbs, ubs = initialize_params_bounds(solver, net, degree, input)
     
     if return_bounds
@@ -257,8 +256,8 @@ kwargs:
 function propagate(solver::aCROWN, net, input::Hyperrectangle, lbs, ubs; printing=false)   
     s = NV.forward_network(solver, net, input, lbs, ubs)
     
-    ll, lu = bounds(s.Λ, s.λ, s.lb, s.ub)
-    ul, uu = bounds(s.Γ, s.γ, s.lb, s.ub)
+    ll, lu = bounds(s.Λ, s.λ, s.domain)
+    ul, uu = bounds(s.Γ, s.γ, s.domain)
 
     printing && println("lbs = ", ll)
     printing && println("ubs = ", uu)
