@@ -201,7 +201,7 @@ function initialize_params_bounds(solver::PolyCROWN, net, degree::N, input) wher
     s_poly = forward_act_stub(ipsolver, net[1], ŝ, l, u, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs)
     
     lbs_lin, ubs_lin = initialize_params_bounds(solver.lin_solver, net[2:end], 1, s_poly)
-    return ŝ, l, u, lbs_lin, ubs_lin, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs
+    return ŝ, [[l]; lbs_lin], [[u]; ubs_lin], rs, cs, symmetric_factor, unique_idxs, duplicate_idxs
 end
 
 
