@@ -2,6 +2,7 @@
 @with_kw struct PolyCROWN <: NV.Solver 
     separate_alpha = true
     use_tightened_bounds = true
+    prune_neurons = true  # prune fixed inactive ReLUs
     # number of layers for polynomial relaxation
     poly_layers = 1
     # solver for polynomial part
@@ -11,8 +12,8 @@
 end
 
 
-function PolyCROWN(psolver ; separate_alpha=true, use_tightened_bounds=true, initialize=false, poly_layers=1)
-    return PolyCROWN(separate_alpha, use_tightened_bounds, poly_layers, psolver, 
+function PolyCROWN(psolver ; separate_alpha=true, use_tightened_bounds=true, initialize=false, prune_neurons=true, poly_layers=1)
+    return PolyCROWN(separate_alpha, use_tightened_bounds, prune_neurons, poly_layers, psolver, 
                      aCROWN(separate_alpha=separate_alpha, use_tightened_bounds=use_tightened_bounds, initialize=initialize))
 end
 
@@ -284,15 +285,6 @@ function forward_act_stub(solver::DiffNNPolySym, L::CROWNLayer{NV.ReLU, MN, BN, 
 
     L̂, Û = quad_prop_common!(cₗ, cᵤ, s.Low, s.Up, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs, init=solver.init)
 
-    #=
-    if solver.common_generators
-        L̂, Û = quad_prop_common(cₗ, cᵤ, s.Low, s.Up, l, u, l, u)
-    else
-        L̂ = fast_quad_prop(cₗ[:,3], cₗ[:,2], cₗ[:,1], s.Low, l, u)
-        Û = fast_quad_prop(cᵤ[:,3], cᵤ[:,2], cᵤ[:,1], s.Up, l, u)
-    end
-    =#
-
     return DiffPolyInterval(L̂, Û, input.lbs, input.ubs)
 end
 
@@ -306,11 +298,17 @@ function optimise_bounds(solver::PolyCROWN, net::Chain, input_set::Hyperrectangl
     # bounds before activation in first layer are just interval bounds and don't change
     # with different α parameters, so we can just reuse ŝ (the reachable set after the 1st linear layer),
     # l and u (the bounds after the 1st linear layer) throughout the optimization loop
-    ŝ, l, u, lbs, ubs, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs = initialize_params_bounds(solver, net, 2, s)
+    ŝ, lbs, ubs, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs = initialize_params_bounds(solver, net, 2, s)
+
+    if solver.prune_neurons
+        # TODO: maybe add as callback to optimisation?
+        ŝ = select_idxs(ŝ, .~(ubs[1] .<= 0), 1)
+        net, lbs, ubs = prune(ZeroPruner(), net, lbs, ubs)
+    end
 
     optfun = m -> begin
-        s_poly = forward_act_stub(solver.poly_solver, m[1], ŝ, l, u, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs)
-        s_crown = NV.forward_network(solver.lin_solver, m[2:end], s_poly, lbs, ubs)
+        s_poly = forward_act_stub(solver.poly_solver, m[1], ŝ, lbs[1], ubs[1], rs, cs, symmetric_factor, unique_idxs, duplicate_idxs)
+        s_crown = NV.forward_network(solver.lin_solver, m[2:end], s_poly, lbs[2:end], ubs[2:end])
 
         ll, lu = bounds(s_crown.Λ, s_crown.λ, s_poly)
         ul, uu = bounds(s_crown.Γ, s_crown.γ, s_poly)
@@ -321,7 +319,7 @@ function optimise_bounds(solver::PolyCROWN, net::Chain, input_set::Hyperrectangl
 
     res = optimise(optfun, net, opt, params=params)
 
-    print_results && propagate(solver, net, s, lbs, us, printing=true)
+    print_results && propagate(solver, net, s, lbs, ubs, printing=true)
     
     return res
 end
