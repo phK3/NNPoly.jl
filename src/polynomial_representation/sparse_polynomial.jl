@@ -8,19 +8,19 @@
 #
 # Changes mostly due to making the code differentiable by Zygote.
 
-struct SparsePolynomial{N<:Number,M<:Integer}
-    G::Matrix{N}  # generator matrix
-    E::Matrix{M}  # exponent matrix  (default is UInt16)
-    ids::Vector{Integer}  # vector holding variable ids
+struct SparsePolynomial{N<:Number,M<:Integer,T<:Integer,GM<:AbstractArray{N},EM<:AbstractArray{M},VI<:AbstractArray{T}}
+    G::GM  # generator matrix
+    E::EM  # exponent matrix  (default is UInt16)
+    ids::VI  # vector holding variable ids
 end
 
 
-function SparsePolynomial(h::Hyperrectangle{N}) where N <: Number
+function SparsePolynomial(h::Hyperrectangle{N}, exponent_dtype=UInt16, id_dtype=UInt16) where N <: Number
     n = dim(h)
     unfixed_mask = (h.radius .!= 0)
     G = [h.center I(n)[:, unfixed_mask] .* h.radius]
-    E = [zeros(UInt16, n) I(n)[:, unfixed_mask]]
-    sp = SparsePolynomial(G, E, Vector{Integer}(1:n))
+    E = [zeros(exponent_dtype, n) I(n)[:, unfixed_mask]]
+    sp = SparsePolynomial(G, E, Vector{id_dtype}(1:n))
     return sp
 end
 
@@ -106,32 +106,7 @@ end
 Removes duplicate monomial entries by summing up monomial coefficients for
     monomials with same exponents.
 """
-function compact(sp::SparsePolynomial{N,M}) where {N,M}
-    #=d = @ignore_derivatives duplicates(eachcol(sp.E))
-    S = @ignore_derivatives compactification_matrix(sp.G, d)
-    unique_idxs = @ignore_derivatives first.(values(d))
-
-    #Ĝ = G * S
-    Ĝ = sp.G * S
-    Ê = sp.E[:, unique_idxs]
-
-    # remove zero generators
-    # needs to be done *after* summarization, because we generators might cancel
-    # out in the process!
-    non_zeros = vec(sum(abs.(Ĝ), dims=1) .!= 0)
-    Ê = Ê[:, non_zeros]
-    Ĝ = Ĝ[:, non_zeros]
-
-    if size(Ĝ, 2) == 0
-        # all terms were zero
-        # -> create constant zero SparsePolynomial
-        n_dim = size(Ĝ, 1)
-        Ĝ = zeros(n_dim, 1)
-        Ê = zeros(M, length(sp.ids), 1)
-    end
-
-    return SparsePolynomial(Ĝ, Ê, sp.ids)=#
-
+function compact(sp::SparsePolynomial)
     unique_idxs, duplicate_idxs = compact_idxs(sp)
     return compact(sp, unique_idxs, duplicate_idxs, remove_zeros=false)
 end
@@ -149,12 +124,12 @@ returns:
     duplicate_idxs - vector s.t. duplicate_idxs[i] = duplicate_idxs[j] = k, iff. the i-th and k-th coefficients
                      are for the same monomial and this monomial has index k in the compacted representation. 
 """
-function compact_idxs(sp::SparsePolynomial{N,M}) where {N,M}
+function compact_idxs(sp::SparsePolynomial)
     d = @ignore_derivatives duplicates(eachcol(sp.E))
     unique_idxs = @ignore_derivatives first.(values(d))
 
     duplicate_idxs = @ignore_derivatives begin
-        idxs = zeros(M, size(sp.E, 2))
+        idxs = zeros(Int, size(sp.E, 2))
         for (i, v_list) in enumerate(collect(values(d)))
             for v in v_list
                 idxs[v] = i
@@ -212,7 +187,7 @@ args:
     sp - (SparsePolynomial) the polynomial
     new_ids - (Vector{Integer}) the ids of the new variables
 """
-function expand_ids(sp::SparsePolynomial{N,M}, new_ids) where {N,M}
+function expand_ids(sp::SparsePolynomial, new_ids)
     n_ids, n_gens = size(sp.E)
 
     # keep ids sorted
@@ -252,7 +227,7 @@ end
 Returns -f(x) for input f(x)
 """
 function negate(sp::SparsePolynomial)
-    return SparsePolynomial(-sp.G, sp.E, sp.ids)
+    return SparsePolynomial(.-sp.G, sp.E, sp.ids)
 end
 
 
@@ -284,7 +259,7 @@ end
 Multiply each dimension with the same scalar or multiply each dimension with a
 specific scalar for that dimension.
 """
-function multiply(a::Union{N, Vector{N}}, sp::SparsePolynomial) where N <: Number
+function multiply(a::Union{N, VN}, sp::SparsePolynomial) where {N <: Number, VN<:Vector{N}}
     # @assert length(a) == 1 || length(a) == size(sp.G, 1) "|a| = $(length(a)), but size(G) = $(size(sp.G))"
     Ĝ = a .* sp.G
     return SparsePolynomial(Ĝ, sp.E, sp.ids)
@@ -304,7 +279,7 @@ end
 """
 Shifts the starting point of the polynomial by a vector v.
 """
-function translate(sp::SparsePolynomial{N,M}, v::AbstractVector) where {N,M}
+function translate(sp::SparsePolynomial, v::AbstractVector)
     const_idx = @ignore_derivatives findfirst(x -> sum(x) == 0, eachcol(sp.E))
 
     if isnothing(const_idx)
@@ -370,7 +345,7 @@ end
 Computes a one-dimensional quadratic function for each input dimension.
 I.e. yᵢ = aᵢxᵢ² + bᵢxᵢ + cᵢ for each input dimension i
 """
-function quadratic_propagation(a, b, c, sp::SparsePolynomial{N,M}) where {N,M}
+function quadratic_propagation(a, b, c, sp::SparsePolynomial)
     n, m = size(sp.G)
 
     p_quad = quadratic_map_1d(a, sp)
@@ -385,7 +360,7 @@ end
 Computes the convex hull of two polynomials.
 Careful: Dependencies between two polynomials are discarded to compute the convex hull!
 """
-function convex_hull(sp1::SparsePolynomial{N,M}, sp2::SparsePolynomial{N,M}) where {N,M}
+function convex_hull(sp1::SparsePolynomial, sp2::SparsePolynomial)
     # TODO: can we find a way to include the dependencies? Just use exact addition?
     G = 0.5 .* [sp1.G sp1.G sp2.G -sp2.G]
 
@@ -790,7 +765,7 @@ the dimensions of the second polynomial are the second dimensions of the output 
 args:
     polys - (Vector of SparsePolynomial) polynomials to be stacked
 """
-function stack_polys(polys::AbstractVector{<:SparsePolynomial{N,M}}) where {N,M}
+function stack_polys(polys::AbstractVector{<:SparsePolynomial})
     # TODO: really slow implementation
     if length(polys) == 2
         p1 = polys[1]
