@@ -17,8 +17,9 @@ end
 
 function SparsePolynomial(h::Hyperrectangle{N}) where N <: Number
     n = dim(h)
-    G = [h.center I(n) .* h.radius]
-    E = [zeros(UInt16, n) I(n)]
+    unfixed_mask = (h.radius .!= 0)
+    G = [h.center I(n)[:, unfixed_mask] .* h.radius]
+    E = [zeros(UInt16, n) I(n)[:, unfixed_mask]]
     sp = SparsePolynomial(G, E, Vector{Integer}(1:n))
     return sp
 end
