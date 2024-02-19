@@ -8,6 +8,19 @@ struct DiffPolyInterval{N<:Number,M<:Integer}
 end
 
 
+function select_idxs(s::DiffPolyInterval, row_idxs, layer_idx)
+    poly_interval = select_idxs(s.poly_interval, row_idxs)
+
+    lbs = copy(s.lbs)
+    ubs = copy(s.ubs)
+
+    lbs[layer_idx] = lbs[layer_idx][row_idxs]
+    ubs[layer_idx] = ubs[layer_idx][row_idxs]
+
+    return DiffPolyInterval(poly_interval, lbs, ubs)
+end
+
+
 function DiffPolyInterval(Low, Up, lbs, ubs)
     return DiffPolyInterval(PolyInterval(Low, Up), lbs, ubs)
 end

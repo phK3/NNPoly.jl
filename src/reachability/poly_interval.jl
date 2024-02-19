@@ -160,3 +160,12 @@ function truncate_desired_common(pint::PolyInterval, n_gens::Integer)
 
     return PolyInterval(L, U)
 end
+
+
+
+# TODO: include in array interface?
+function select_idxs(s::PolyInterval, idxs)
+    L̂ = SparsePolynomial(s.Low.G[idxs, :], s.Low.E, s.Low.ids)
+    Û = SparsePolynomial(s.Up.G[idxs, :], s.Up.E, s.Up.ids)
+    return PolyInterval(L̂, Û)
+end
