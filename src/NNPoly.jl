@@ -15,6 +15,8 @@ include("utils.jl")
 include("network.jl")
 include("optimisation_loop.jl")
 
+include("simplification/zero_pruner.jl")
+
 include("polynomial_representation/sparse_polynomial.jl")
 include("polynomial_representation/autodiff_speedup.jl")
 include("reachability/autodiff_speedup.jl")
