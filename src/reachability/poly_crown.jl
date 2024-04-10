@@ -187,7 +187,7 @@ function initialize_params_bounds(solver::PolyCROWN, net, degree::N, input) wher
                                 relaxations=psolver.relaxations, splitting_depth=psolver.splitting_depth,
                                 init=true, save_bounds=psolver.save_bounds,
                                 common_generators=psolver.common_generators)
-    ŝ = forward_linear(ipsolver, net[1], input)
+    ŝ = @allowscalar forward_linear(ipsolver, net[1], input)
 
     # don't know the sizes of these arrays beforehand, so just let them empty. Real numbers get pushed during initialization.
     rs = Vector{Int}()
@@ -243,7 +243,7 @@ function propagate(solver::PolyCROWN, net::Chain, input::DiffPolyInterval, lbs, 
     ŝ = forward_linear(solver.poly_solver, net[1], input)
 
     # for first layer, bounds from s.Low and s.Up are the same
-    l, u = bounds(ŝ.Low)
+    l, u = bounds(ŝ.poly_interval.Low)
 
     s_poly = forward_act_stub(solver.poly_solver, net[1], ŝ, l, u)
     s_crown = NV.forward_network(solver.lin_solver, m[2:end], s_poly, lbs, ubs)

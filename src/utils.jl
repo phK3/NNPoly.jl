@@ -1,5 +1,43 @@
 
 
+"""
+Creates an array of all ones with the same element type and shape as A
+"""
+function Base.one(A::AN) where {N<:Number, AN<:AbstractArray{N}}
+    return zero(A) .+ one(N)
+end
+
+
+"""
+Creates an array of zeros with the same array type as A.
+
+Important, if A is a CuArray as the original zeros only considers element type
+which doesn't show if the original array lives on the gpu or the cpu.
+"""
+function Base.zeros(A::AN, dims...) where {N<:Number, AN<:AbstractArray{N}}
+    return zeros(N, dims)
+end
+
+function Base.zeros(A::CN, dims...) where {N<:Number, CN<:CuArray{N}}
+    return CUDA.fill(zero(N), dims)
+end
+
+
+"""
+Transfers array a to the same device as array a_dev.
+
+args:
+    a_dev - an array already living on the desired device
+    a - the array to transfer to the desired device
+"""
+function convert_device(a_dev::AbstractArray, a::AbstractArray)
+    return a
+end
+
+function convert_device(a_dev::CuArray, a::AbstractArray)
+    return cu(a)
+end
+
 ## Matrix Helpers
 
 """
@@ -37,6 +75,25 @@ function partial_I(n, idxs)
     end
 
     return M
+end
+
+
+"""
+Return the slope of the ReLU relaxation based on lower and upper bounds to its input.
+
+Typesafe implementation.
+
+args:
+    l - concrete lower bound on the ReLU's input
+    u - concrete upper bound on the ReLU's input
+
+returns:
+    0 if u<=0, 1 if l>=0 and u/(u-l) otherwise
+"""
+function relaxed_relu_gradient(l::N, u::N) where N<:Number
+    u <= 0 && return zero(N)
+    l >= 0 && return one(N)
+    return u/(u-l)
 end
 
 

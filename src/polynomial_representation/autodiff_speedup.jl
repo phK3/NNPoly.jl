@@ -249,22 +249,22 @@ function quad_prop_common!(cₗ, cᵤ, spl::SparsePolynomial{N,M}, spu::SparsePo
     end
 
     # square polynomial
-    Ĝ = sp.G[:,rs] .* sp.G[:, cs] .* symmetric_factor'
+    Ĝ = sp.G[:,rs] .* sp.G[:, cs] .* convert_device(spl.G, symmetric_factor)'
     Ê = sp.E[:,rs] .+ sp.E[:,cs]
 
     
     G_lin = b .* sp.G
-    sp = SparsePolynomial([c G_lin a .* Ĝ], [zeros(M, length(sp.ids)) sp.E Ê], sp.ids)
+    sp = SparsePolynomial([c G_lin a .* Ĝ], [zeros(sp.E, length(sp.ids)) sp.E Ê], sp.ids)
 
     if init
         @ignore_derivatives begin
-            unique_idxs_init, duplicate_idxs_init = compact_idxs(sp)
+            unique_idxs_init, duplicate_idxs_init = @allowscalar compact_idxs(sp)
             push!(unique_idxs, unique_idxs_init...)
             push!(duplicate_idxs, duplicate_idxs_init...)
         end
     end
 
-    ŝp = compact(sp, unique_idxs, duplicate_idxs, remove_zeros=false)
+    ŝp = compact(sp, convert_device(sp.G, unique_idxs), convert_device(sp.G, duplicate_idxs), remove_zeros=false)
 
     L̂ = SparsePolynomial(ŝp.G[1:n,:], ŝp.E, ŝp.ids)
     Û = SparsePolynomial(ŝp.G[n+1:end,:], ŝp.E, ŝp.ids)

@@ -2,12 +2,12 @@
 # Zygote can't correctly differentiate through NV.relaxed_relu_gradient.(l, u) (yielding all zero gradients)
 # differentiating through [NV.relaxed_relu_gradient(lᵢ, uᵢ) for lᵢ, uᵢ in zip(l, u)] works, but is highly inefficient
 # so we defined a vectorized version
-function relaxed_relu_gradient_vectorized(l::Vector{N}, u::Vector{N}) where N<:Number
-    return NV.relaxed_relu_gradient.(l, u)
+function relaxed_relu_gradient_vectorized(l::AbstractArray{N}, u::AbstractArray{N}) where N<:Number
+    return relaxed_relu_gradient.(l, u)
 end
 
 
-function ChainRulesCore.rrule(::typeof(relaxed_relu_gradient_vectorized), l::Vector{N}, u::Vector{N}) where N<:Number
+function ChainRulesCore.rrule(::typeof(relaxed_relu_gradient_vectorized), l::AbstractArray{N}, u::AbstractArray{N}) where N<:Number
     λ = relaxed_relu_gradient_vectorized(l, u)
     
     function relaxed_relu_gradient_vectorized_pullback(Δλ)

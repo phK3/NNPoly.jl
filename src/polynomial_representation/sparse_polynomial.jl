@@ -574,11 +574,12 @@ Computes component-wise bounds on monomials xᵢⁿxⱼᵐxₖᵒ... of a sparse
 without a scalar factor.
 Values of the variables are assumed to be within [-1, 1].
 """
-function exponent_bounds(sp::SparsePolynomial)
+function exponent_bounds(sp::SparsePolynomial{N,M,T,GM,EM,VI}) where {N,M,T,GM,EM,VI}
     n, m = size(sp.E)
     #lbs = [monomial_lb(ej) for ej in eachcol(sp.E)]
     lbs = @ignore_derivatives monomial_lbs(sp.E)
-    ubs = ones(m)  # ub is just always 1 under our assumptions
+    #ubs = ones(m)  # ub is just always 1 under our assumptions
+    ubs = one(lbs)  # this way we get the same array type as lbs
 
     return lbs, ubs
 end
