@@ -4,10 +4,12 @@ authors = ["phK3 <ufedz@student.kit.edu>"]
 version = "0.1.0"
 
 [deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 BlockDiagonals = "0a1fb500-61f7-11e9-3c65-f5ef3456f9f0"
 CDDLib = "3391f64e-dcde-5f30-b752-e11513730f60"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 ChainRules = "082447d4-558c-5d27-93f4-14fc19e9eca2"
 ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 ChainRulesTestUtils = "cdddcdb0-9152-4a09-a978-84456f9df70a"
@@ -37,4 +39,5 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 VnnlibParser = "a2eb1b4f-306b-4001-92b2-1ae29ccd22f5"
 Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 ZygoteRules = "700de1a5-db45-46bc-99cf-38207098b444"
+cuDNN = "02a925ec-e4fe-4b08-9a7e-0d78e3d38ccd"
 libblastrampoline_jll = "8e850b90-86db-534c-a0d3-1478176c7d93"
