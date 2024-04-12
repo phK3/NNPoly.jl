@@ -80,7 +80,7 @@ end
 
 function get_lower_polynomial_shift(lb::AbstractVector, ub::AbstractVector, degree, C::AbstractMatrix)
     n = size(C, 1)
-    Ĉ = [zeros(n) C]
+    Ĉ = [zeros(C, n) C]
 
     e₁ = (1:degree + 1 .== 1)
     e₂ = (1:degree + 1 .== 2)
@@ -88,9 +88,10 @@ function get_lower_polynomial_shift(lb::AbstractVector, ub::AbstractVector, degr
     crossing = (lb .< 0) .& (ub .> 0)
     fixed_active = lb .>= 0
 
-    if sum(crossing) > 0
-        uₗ = poly_maximum(Ĉ[crossing,:], lb[crossing], 0)
-        uᵤ = poly_maximum(Ĉ[crossing,:] .- e₂', 0, ub[crossing])
+    n_crossing = sum(crossing)
+    if n_crossing > 0
+        uₗ = poly_maximum(Ĉ[crossing,:], lb[crossing], zeros(lb, n_crossing))
+        uᵤ = poly_maximum(Ĉ[crossing,:] .- e₂', zeros(ub, n_crossing), ub[crossing])
 
         u = max.(uₗ, uᵤ)
     else
@@ -103,7 +104,7 @@ end
 
 function get_upper_polynomial_shift(lb::AbstractVector, ub::AbstractVector, degree, C::AbstractMatrix)
     n = size(C, 1)
-    Ĉ = [zeros(n) C]
+    Ĉ = [zeros(C, n) C]
 
     e₁ = (1:degree + 1 .== 1)
     e₂ = (1:degree + 1 .== 2)
