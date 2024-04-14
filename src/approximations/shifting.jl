@@ -82,8 +82,9 @@ function get_lower_polynomial_shift(lb::AbstractVector, ub::AbstractVector, degr
     n = size(C, 1)
     Ĉ = [zeros(C, n) C]
 
-    e₁ = (1:degree + 1 .== 1)
-    e₂ = (1:degree + 1 .== 2)
+    # calling cu(arr) on an array doesn't work with zygote and those are just constants
+    e₁ = @ignore_derivatives convert_device(lb, (1:degree + 1 .== 1))
+    e₂ = @ignore_derivatives convert_device(lb, (1:degree + 1 .== 2))
 
     crossing = (lb .< 0) .& (ub .> 0)
     fixed_active = lb .>= 0
@@ -97,8 +98,14 @@ function get_lower_polynomial_shift(lb::AbstractVector, ub::AbstractVector, degr
     else
         u = 0
     end
-    #return (Ĉ .- l .* e₁') .* crossing .+ e₂' .* fixed_active
-    return I(n)[:,crossing] * (Ĉ[crossing,:] .- u .* e₁') .+ e₂' .* fixed_active
+
+    # return polynmial shifted down by appropriate amount if ReLU is crossing,
+    # if fixed active, just return linear identity
+    # nothing is added to zero rows for fixed inactive
+
+    # CUDA doesn't like indexing the identity matrix :-(
+    identity = convert_device(Ĉ, I(n))
+    return identity[:,crossing] * (Ĉ[crossing,:] .- u .* e₁') .+ e₂' .* fixed_active
 end
 
 
@@ -106,20 +113,22 @@ function get_upper_polynomial_shift(lb::AbstractVector, ub::AbstractVector, degr
     n = size(C, 1)
     Ĉ = [zeros(C, n) C]
 
-    e₁ = (1:degree + 1 .== 1)
-    e₂ = (1:degree + 1 .== 2)
+    e₁ = @ignore_derivatives convert_device(lb, (1:degree + 1 .== 1))
+    e₂ = @ignore_derivatives convert_device(lb, (1:degree + 1 .== 2))
 
     crossing = (lb .< 0) .& (ub .> 0)
     fixed_active = lb .>= 0
 
-    if sum(crossing) > 0
-        lₗ = poly_minimum(Ĉ[crossing,:], lb[crossing], 0)
-        lᵤ = poly_minimum(Ĉ[crossing,:] .- e₂', 0, ub[crossing])
+    n_crossing = sum(crossing)
+    if n_crossing > 0
+        lₗ = poly_minimum(Ĉ[crossing,:], lb[crossing], zeros(lb, n_crossing))
+        lᵤ = poly_minimum(Ĉ[crossing,:] .- e₂', zeros(ub, n_crossing), ub[crossing])
 
         l = min.(lₗ, lᵤ)
     else
         l = 0
     end
     #return (Ĉ .- l .* e₁') .* crossing .+ e₂' .* fixed_active
-    return I(n)[:,crossing] * (Ĉ[crossing,:] .- l .* e₁') .+ e₂' .* fixed_active
+     identity = convert_device(Ĉ, I(n))
+    return identity[:,crossing] * (Ĉ[crossing,:] .- l .* e₁') .+ e₂' .* fixed_active
 end
