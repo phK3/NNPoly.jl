@@ -325,6 +325,53 @@ function optimise_bounds(solver::PolyCROWN, net::Chain, input_set::Hyperrectangl
 end
 
 
+function optimise_bounds_gpu(solver::PolyCROWN, net::Chain, input_set::Hyperrectangle; opt=Flux.OptimiserChain(Flux.Adam()), params=OptimisationParams(), print_results=false)
+    psolver = solver.poly_solver
+    # TODO: implement method for Chain
+    s = initialize_symbolic_domain(solver, net[1:solver.poly_layers], input_set)
+
+    # TODO: is there some better way of returning all those precomputed values?
+    # bounds before activation in first layer are just interval bounds and don't change
+    # with different α parameters, so we can just reuse ŝ (the reachable set after the 1st linear layer),
+    # l and u (the bounds after the 1st linear layer) throughout the optimization loop
+    ŝ, lbs, ubs, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs = initialize_params_bounds(solver, net, 2, s)
+
+    if solver.prune_neurons
+        # TODO: maybe add as callback to optimisation?
+        ŝ = select_idxs(ŝ, .~(ubs[1] .<= 0), 1)
+        net, lbs, ubs = prune(ZeroPruner(), net, lbs, ubs)
+    end
+
+    ŝ = ŝ |> gpu
+    lbs = [lb |> gpu for lb in lbs]
+    ubs = [ub |> gpu for ub in ubs]
+    rs = rs |> gpu
+    cs = cs |> gpu
+    symmetric_factor = symmetric_factor |> gpu
+    unique_idxs = unique_idxs |> gpu
+    duplicate_idxs = duplicate_idxs |> gpu
+
+    net = net |> gpu
+
+    optfun = m -> begin
+        s_poly = forward_act_stub(solver.poly_solver, m[1], ŝ, lbs[1], ubs[1], rs, cs, symmetric_factor, unique_idxs, duplicate_idxs)
+        s_crown = NV.forward_network(solver.lin_solver, m[2:end], s_poly, lbs[2:end], ubs[2:end])
+
+        ll, lu = bounds(s_crown.Λ, s_crown.λ, s_poly)
+        ul, uu = bounds(s_crown.Γ, s_crown.γ, s_poly)
+
+        loss = sum(uu .- ll)
+        return loss
+    end
+
+    res = optimise(optfun, net, opt, params=params)
+
+    print_results && propagate(solver, net, s, lbs, ubs, printing=true)
+    
+    return res
+end
+
+
 function optimise_bounds(solver::PolyCROWN, net::NV.NetworkNegPosIdx, input_set::Hyperrectangle; opt=nothing,
                         params=OptimisationParams(), print_result=false, poly_layers=1)
     psolver = solver.poly_solver
