@@ -26,6 +26,9 @@ end
 """
 Transfers array a to the same device as array a_dev.
 
+Diagonal matrices are converted to dense matrices on the GPU.
+Otherwise indexing them leads to scalar indexing errors.
+
 args:
     a_dev - an array already living on the desired device
     a - the array to transfer to the desired device
@@ -36,6 +39,10 @@ end
 
 function convert_device(a_dev::CuArray, a::AbstractArray)
     return cu(a)
+end
+
+function convert_device(a_dev::CuArray, a::Diagonal)
+    return cu(Matrix(a))
 end
 
 ## Matrix Helpers
