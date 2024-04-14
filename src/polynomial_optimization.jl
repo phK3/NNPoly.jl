@@ -157,6 +157,47 @@ function calculate_extrema(cs, lb, ub)
 end
 
 
+"""
+Calculates minimizer of number of quadratic polynomials with coefficients C over box domain [l, u].
+
+Completely vectorized implementation for better performance with Flux and CUDA.
+
+args:
+    C - matrix of polynomial coefficients (n x 3) for n quadratic polynomials
+        C[1] .+ C[2] .* x .+ C[3] .* x.^2
+    l - vector of concrete lower bounds (n x 1)
+    u - vector of concrete upper bounds (n x 1)
+
+returns:
+    x_min - vector of minimizers of the polynomials over the interval (n x 1)
+"""
+function calculate_minimizer_quad(C, l, u)
+    @assert size(C, 2) == 3 "calculate_minimizer_quad is only valid for quadratic polynomials!"
+    # if we divide by zero, x_opt will just be +/- inf
+    # need to divide by 2*C[:,3] as .* 0.5 will convert to Float64 
+    # in ifelse, we are then going to have one arg with Float64 and one with Float32
+    # leading to promotion to AbstractFloat which crashes CUDA
+    # if no quadratic term, just set x_opt to lower bound - we check upper bound as well later on
+    x_opt = ifelse.(C[:,3] .== 0, l, .- C[:,2] ./ (2 .* C[:,3]))
+
+    X = [@ignore_derivatives(one(x_opt)) x_opt x_opt.^2]
+    L = [@ignore_derivatives(one(l)) l l.^2]
+    U = [@ignore_derivatives(one(u)) u u.^2]
+
+    Yx = sum(C .* X, dims=2)
+    Yl = sum(C .* L, dims=2)
+    Yu = sum(C .* U, dims=2)
+
+    # only consider x_opt if it is within bounds
+    x_mask = (l .<= x_opt) .& (x_opt .<= u)
+    # if x_opt valid and smaller than Yl and Yu, return x_opt, else the smaller of Yl and Yu
+    x_min = ifelse.(x_mask .& (Yx .<= Yl) .& (Yx .<= Yu), 
+                    x_opt, 
+                    ifelse.(Yl .<= Yu, l, u))
+    return vec(x_min)
+end
+
+
 ## Implicit Differentiation for Polynomial optimisation
 
 
@@ -182,8 +223,17 @@ end
 
 function forward_poly_minimizer(C, l, u)
     # forward method for ImplicitDifferentiation
-    x = poly_minimizer.(eachrow(C), l, u)
-    z = 0  # additional constraints info not needed
+    if size(C, 2) == 3
+        ## quadratic polynomial
+        # is there a better way than just hard-coding this?
+        x = calculate_minimizer_quad(C, l, u)
+
+        #println(x)
+    else
+        x = poly_minimizer.(eachrow(C), l, u)
+    end
+    
+    z = 0.  # additional constraints info not needed
     return x, z
 end
 
@@ -195,8 +245,11 @@ function conditions_poly_minimizer(C, l, u, x, z)
     # if x really is the minimizer, it is the fixed point of projected gradient descent.
     n = size(C, 2) - 1
     # coeffs of derivative
-    dC = C[:,2:end] .* (1:n)'
-    x_powers = reduce(hcat, [x.^k for k in 0:n-1])
+    dC = C[:,2:end] .* @ignore_derivatives(convert_device(x, 1:n))'
+
+    exps = @ignore_derivatives convert_device(x, 0:n-1)
+    x_powers = repeat(x, 1, n) .^ exps'
+    #x_powers = reduce(hcat, [x.^k for k in 0:n-1])
     ∇ₓp = sum(dC .* x_powers, dims=2)
 
     η = 0.01
@@ -221,9 +274,24 @@ returns:
     y_min - vector of minimum values
 """
 function poly_minimum(C::AbstractMatrix, l, u)
-    args = comp_vec_clu(C, l, u)
-    x_opt = (first ∘ implicit_poly_min)(args)
-    x_powers = reduce(hcat, [x_opt.^k for k in 0:size(C,2)-1])
+    degree = size(C,2) - 1
+
+    if degree == 2
+        # TODO: just a workaround to have a separate case here
+        # since general case somehow doesn't work on the GPU with Zygote 
+        # and gives NaN gradients
+        x_opt = calculate_minimizer_quad(C, l, u)
+        x_powers = [@ignore_derivatives(one(x_opt)) x_opt x_opt.^2]
+    else
+        # TODO: find source of NaNs in GPU backprop!!!
+        # why is it working on the CPU and not on the GPU?
+        args = comp_vec_clu(C, l, u)
+        x_opt = (first ∘ implicit_poly_min)(args)
+        exps = @ignore_derivatives convert_device(x_opt, 0:degree)
+        x_powers = repeat(x_opt, 1, degree + 1) .^ exps'
+        #x_powers = reduce(hcat, [x_opt.^k for k in 0:size(C,2)-1])
+    end
+
     y_opt = sum(C .* x_powers, dims=2)
     return y_opt
 end
