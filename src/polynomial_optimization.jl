@@ -208,6 +208,30 @@ conditions_poly_minimizer(y::ComponentArray, x, z) = conditions_poly_minimizer(y
 implicit_poly_min = ImplicitFunction(forward_poly_minimizer, conditions_poly_minimizer)
 
 
+function poly_minimum_quad(C, l, u)
+    @assert size(C, 2) == 3 "only quadratic polynomials are allowed in poly_minimum_quad!!!"
+    div0mask = C[:,3] .== 0
+    # if c₂ == 0 then l else -c₁ / (2c₂) for quadratics
+    # still need ... .+ div0mask .* 1 for avoiding NaN in the backward pass. 
+    # Since ifelse is branchless, Zygote evaluates both branches and adds the results back together, which
+    # would propagate the NaN to the overall gradient if there is NaN in the div0 branch
+    x_opt = ifelse.(div0mask, l, .- C[:,2] ./ (2 .* C[:,3] .+ div0mask .* 1))  
+    
+    X = [zero(x_opt) .+ 1 x_opt x_opt .^2]
+    L = [zero(l) .+ 1 l l .^2]
+    U = [zero(u) .+ 1 u u .^2]
+
+    Yx = sum(C .* X, dims=2)
+    Yl = sum(C .* L, dims=2)
+    Yu = sum(C .* U, dims=2)
+
+    xmask = (l .<= x_opt) .& (x_opt .<= u)
+    y_bounds = min.(Yl, Yu)
+    y_opt = ifelse.(xmask, min.(Yx, y_bounds), y_bounds)
+    return y_opt
+end
+
+
 """
 Calculates the minimum values yᵢ_min of polynomials pᵢ(x) = C[i,1] + C[i,2]x + C[i,3]x² + ...
 over the intervals [lᵢ, uᵢ].
@@ -221,10 +245,19 @@ returns:
     y_min - vector of minimum values
 """
 function poly_minimum(C::AbstractMatrix, l, u)
-    args = comp_vec_clu(C, l, u)
-    x_opt = (first ∘ implicit_poly_min)(args)
-    x_powers = reduce(hcat, [x_opt.^k for k in 0:size(C,2)-1])
-    y_opt = sum(C .* x_powers, dims=2)
+    degree = size(C, 2) .- 1
+
+    if degree == 2
+        # is there a more elegant way?
+        # special case not for speed reasons, but rather that we get NaN gradients on the GPU for whatever reason ...
+        y_opt = poly_minimum_quad(C, l, u)
+    else
+        args = comp_vec_clu(C, l, u)
+        x_opt = (first ∘ implicit_poly_min)(args)
+        x_powers = reduce(hcat, [x_opt.^k for k in 0:size(C,2)-1])
+        y_opt = sum(C .* x_powers, dims=2)
+    end
+
     return y_opt
 end
 
