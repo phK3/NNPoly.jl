@@ -289,7 +289,7 @@ function forward_act_stub(solver::DiffNNPolySym, L::CROWNLayer{NV.ReLU, MN, BN, 
 end
 
 
-function optimise_bounds(solver::PolyCROWN, net::Chain, input_set::Hyperrectangle; opt=Flux.OptimiserChain(Flux.Adam()), params=OptimisationParams(), print_results=false)
+function optimise_bounds(solver::PolyCROWN, net::Chain, input_set::Hyperrectangle; opt=Flux.OptimiserChain(Flux.Adam()), params=OptimisationParams(), loss_fun=bounds_loss, print_results=false)
     psolver = solver.poly_solver
     # TODO: implement method for Chain
     s = initialize_symbolic_domain(solver, net[1:solver.poly_layers], input_set)
@@ -307,21 +307,28 @@ function optimise_bounds(solver::PolyCROWN, net::Chain, input_set::Hyperrectangl
     end
 
     optfun = m -> begin
+        if all(ubs[end] .- lbs[end] .== 0)
+            println("Output bounds are exact!")
+            return 0.
+        end
+
         s_poly = forward_act_stub(solver.poly_solver, m[1], ŝ, lbs[1], ubs[1], rs, cs, symmetric_factor, unique_idxs, duplicate_idxs)
         s_crown = NV.forward_network(solver.lin_solver, m[2:end], s_poly, lbs[2:end], ubs[2:end])
 
         ll, lu = bounds(s_crown.Λ, s_crown.λ, s_poly)
         ul, uu = bounds(s_crown.Γ, s_crown.γ, s_poly)
 
-        loss = sum(uu .- ll)
-        return loss
+        #loss = sum(uu .- ll)
+        #loss = sum(max.(0., uu))  # loss for verifying Ay - b ≤ 0 properties
+        return loss_fun(ll, uu)
     end
 
     res = optimise(optfun, net, opt, params=params)
 
-    print_results && propagate(solver, net, s, lbs, ubs, printing=true)
+    print_results && println("lbs = ", lbs[end])
+    print_results && println("ubs = ", ubs[end])
     
-    return res
+    return res, lbs, ubs
 end
 
 
