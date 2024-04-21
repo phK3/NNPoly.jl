@@ -69,6 +69,19 @@ function generate_specs(rv)
 end
 
 
+onnx2CROWNNetwork(solver::Solver, onnx_file; dtype=Float64, degree=1, first_layer_degree=-1) = onnx2CROWNNetwork(onnx_file, dtype=dtype, degree=degree, first_layer_degree=first_layer_degree)
+onnx2CROWNNetwork(solver::PolyCROWN, onnx_file; dtype=Float64, degree=1, first_layer_degree=2) = onnx2CROWNNetwork(onnx_file, dtype=dtype, degree=degree, first_layer_degree=first_layer_degree)
+
+function get_sat(lbs, ubs)
+    # TODO: do we need to consider other properties?
+    if all(ubs .<= 0)
+        return "unsat"
+    else
+        return "unknown"
+    end
+end
+
+
 
 # max_properties is maximum number of properties we want to verify in this run (useful for debugging and testing)
 """
@@ -88,6 +101,7 @@ kwargs:
     only_pattern - only look at properties whose network_path starts with only_pattern
     timeout - timeout **per instance** in seconds
     force_gc - force garbage collection after each run
+    ignore_output_property - wether to ignore the output property in the vnnlib file and just optimise the output bounds of the network instead
 
 returns:
     counterexample - or nothing, if no counterexample could be found
@@ -95,7 +109,8 @@ returns:
     result - (String) SAT, UNSAT or inconclusive
 """
 function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing, max_properties=Inf, only_pattern=nothing, 
-                        save_history=false, save_times=false, force_gc=false, start_idx=1, stop_idx=nothing)
+                        save_history=false, save_times=false, force_gc=false, start_idx=1, stop_idx=nothing, ignore_output_property=false,
+                        loss_fun=bounds_loss)
     f = CSV.File(string(dir, "/instances.csv"), header=false)
 
     # need y history to get access to final loss values
@@ -105,7 +120,7 @@ function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing,
     stop_idx = isnothing(stop_idx) ? n : stop_idx
     networks = String[]
     properties = String[]
-    #results = String[]
+    results = String[]
     y_starts = zeros(n)
     ys = zeros(n)
     y_hists = []
@@ -115,7 +130,8 @@ function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing,
 
     old_netpath = nothing
     net = nothing
-    net_npi = nothing
+    net_original = nothing
+    # net_npi = nothing
     n_in = 0
     n_out = 0
 
@@ -134,38 +150,49 @@ function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing,
 
         if netpath != old_netpath
             println("-- loading network ", netpath)
-            net = read_onnx_network(string(dir, "/", netpath), dtype=Float64)
+            net_original = onnx2CROWNNetwork(solver, string(dir, "/", netpath), dtype=Float64)
+            # net = read_onnx_network(string(dir, "/", netpath), dtype=Float64)
             old_netpath = netpath
 
-            net_npi = NV.NetworkNegPosIdx(net)
+            #net_npi = NV.NetworkNegPosIdx(net)
 
-            n_in = size(net.layers[1].weights, 2)
-            n_out = NV.n_nodes(net.layers[end])
+            n_in = size(net_original.layers[1].weights, 2)
+            n_out = length(net_original.layers[end].bias)
+            # n_out = NV.n_nodes(net.layers[end])
         end
 
         rv = read_vnnlib_simple(string(dir, "/", propertypath), n_in, n_out)
         specs = generate_specs(rv)
         input_set, output_set = specs[1]  # for now just use one set (we only care about the input set anyways here)
 
-        println("\n### Property ", propertypath, " ###\n")
-        println("--- initial α ---")
-        s = initialize_symbolic_domain(solver, net_npi, input_set)
-        α0 = initialize_params(solver, net_npi, 2, s)
-        y_start = propagate(solver, net_npi, s, α0; printing=true)
+        if !ignore_output_property
+            # merge output property constraints into the last layer
+            net = merge_spec_output_layer(net_original, output_set)
+        else
+            net = net_original
+        end
 
-        println("--- optimisation ---")
-        time = @elapsed res = optimise_bounds(solver, net_npi, input_set, params=params)
-        α₁ = res.x_opt
+        println("\n### Property ", propertypath, " ###\n")
+        #println("--- initial α ---")
+        #s = initialize_symbolic_domain(solver, net_npi, input_set)
+        #α0 = initialize_params(solver, net_npi, 2, s)
+        #y_start = propagate(solver, net_npi, s, α0; printing=true)
+
+        #println("--- optimisation ---")
+        time = @elapsed res, lbs, ubs = optimise_bounds(solver, net, input_set, params=params, loss_fun=loss_fun)
+        #α₁ = res.x_opt
 
         println("\ttime = ", time)
         println("--- optimised α ---")
-        propagate(solver, net_npi, s, α₁; printing=true)
+        #propagate(solver, net_npi, s, α₁; printing=true)
+        println("\tlbs = ", lbs[end])
+        println("\tubs = ", ubs[end])
 
         push!(networks, netpath)
         push!(properties, propertypath)
-        #push!(results, result)
+        push!(results, get_sat(lbs[end], ubs[end]))
         times[i] = time
-        y_starts[i] = y_start
+        y_starts[i] = res.y_hist[1]
         ys[i] = res.y_hist[end]
         save_history && push!(y_hists, res.y_hist)
         save_times && push!(t_hists, res.t_hist)
@@ -209,10 +236,11 @@ end
 
 function verify_vnnlib(solver, dir; logfile=nothing, max_properties=Inf, print_freq=50, n_steps=5000,
     only_pattern=nothing, save_history=false, save_times=false, timeout=60., force_gc=false, start_idx=1,
-    stop_idx=nothing)
-    params = OptimisationParams(n_steps=n_steps, timeout=timeout, print_freq=print_freq)
+    stop_idx=nothing, ignore_output_property=false, loss_fun=bounds_loss_violation_stop)
+    params = OptimisationParams(n_steps=n_steps, timeout=timeout, print_freq=print_freq, y_stop= ignore_output_property ? -Inf : 0.)
     save_history && (params.save_ys = true)
     save_times && (params.save_times = true)
     return verify_vnnlib(solver, dir, params, logfile=logfile, max_properties=max_properties, only_pattern=only_pattern, 
-                        save_history=save_history, save_times=save_times, force_gc=force_gc, start_idx=start_idx, stop_idx=stop_idx)
+                        save_history=save_history, save_times=save_times, force_gc=force_gc, start_idx=start_idx, stop_idx=stop_idx, 
+                        ignore_output_property=ignore_output_property, loss_fun=loss_fun)
 end
