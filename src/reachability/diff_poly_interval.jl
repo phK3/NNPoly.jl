@@ -2,7 +2,7 @@
 
 
 struct DiffPolyInterval{N<:Number,M<:Integer,T<:Integer,VN<:AbstractArray{N}}
-    poly_interval::PolyInterval{N,M}  # NNPoly.PolyInterval
+    poly_interval::PolyInterval{N,M,T}  # NNPoly.PolyInterval
     lbs::Vector{VN}  # (vector of vectors) lower bounds for intermediate values
     ubs::Vector{VN}  # (vector of vectors) upper bounds for intermediate values
 end
