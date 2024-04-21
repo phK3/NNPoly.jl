@@ -3,7 +3,7 @@ module NNPoly
 using LazySets, DynamicPolynomials, RecipesBase, DataStructures, NeuralVerification,
         Parameters, LinearAlgebra, Zygote, SparseArrays, ChainRulesCore, Combinatorics,
         Optimisers, ComponentArrays, ImplicitDifferentiation, CSV, JLD2, VnnlibParser, 
-        OnnxReader, Flux
+        OnnxReader, Flux, JuMP
 const NV = NeuralVerification
 
 # Zygote also uses nothing for zero gradient, so need this to be defined
@@ -16,6 +16,7 @@ include("network.jl")
 include("optimisation_loop.jl")
 
 include("simplification/zero_pruner.jl")
+include("simplification/merge_specification.jl")
 
 include("polynomial_representation/sparse_polynomial.jl")
 include("polynomial_representation/autodiff_speedup.jl")
@@ -33,6 +34,7 @@ include("symbolic_truncation/monomial_relaxation.jl")
 include("symbolic_truncation/truncation.jl")
 
 include("reachability/utils.jl")
+include("reachability/loss_funs.jl")
 include("reachability/nn_poly_zono.jl")
 include("reachability/poly_interval.jl")
 include("reachability/nn_poly_symb.jl")
@@ -44,11 +46,8 @@ include("reachability/diff_poly_interval.jl")
 include("reachability/diff_poly_sym.jl")
 include("reachability/poly_crown.jl")
 
+include("mip.jl")
+
 include("vnnlib.jl")
-
-
-
-
-
 
 end # module
