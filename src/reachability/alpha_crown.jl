@@ -79,7 +79,7 @@ function backward_act(solver::aCROWN, L::CROWNLayer{NV.ReLU, MN, BN, AN}, input:
     end
 
     aᵤ = relaxed_relu_gradient_vectorized(lbs, ubs)
-    bᵤ = aᵤ .* max.(.-lbs, zero(eltype(lbs)))    
+    bᵤ = aᵤ .* max.(.-lbs, zero(eltype(lbs)))  
 
     Λ = flip * (Λ⁻ .* aᵤ' .+ Λ⁺ .* aₗ')
     γ = flip * (Λ⁻ * bᵤ) .+ input.γ
@@ -279,5 +279,5 @@ function optimise_bounds(solver::aCROWN, net, input_set::Hyperrectangle; opt=Opt
 
     print_result && propagate(solver, net, input_set, lbs0, ubs0, printing=true)
 
-    return res
+    return res, lbs0, ubs0
 end
