@@ -30,7 +30,27 @@ function prune(pruner::ZeroPruner, L, lbs, ubs, fixed_inact_prev)
     fixed_inactive = similar(L.bias, Bool)
     fixed_inactive .= false
 
-    return L, fixed_inactive, lbs, ubs
+    Ŵ = L.weights[.~fixed_inactive, .~fixed_inact_prev]
+    b̂ = L.bias[.~fixed_inactive]
+
+    # for Id layer, α = [], so just return that again
+    α̂ = length(L.α) > 0 ? L.α[mask...] : similar(L.α)
+
+    return CROWNLayer(Ŵ, b̂, L.activation, α̂), fixed_inactive, lbs, ubs
+end
+
+
+function prune_output_layer(pruner::ZeroPruner, L, lbs, ubs, fixed_inact_prev)
+    fixed_inactive = similar(L.bias, Bool)
+    fixed_inactive .= false
+
+    # for output layer, we only want to remove the connections to pruned input neurons!!!
+    # NN outputs are still needed to make statements about the specs.
+    Ŵ = L.weights[:, .~fixed_inact_prev]
+    
+    # for Id layer, α = [], so just return that again
+    α̂ = length(L.α) > 0 ? L.α[mask...] : similar(L.α)
+    return CROWNLayer(Ŵ, L.bias, L.activation, α̂), fixed_inactive, lbs, ubs
 end
 
 
@@ -54,8 +74,10 @@ function prune(pruner::ZeroPruner, net::Chain, lbs, ubs)
         ubs_new[i] = ub_new
     end
 
-    push!(layers, net[end])
-    lbs_new[end] = lbs[end]
-    ubs_new[end] = ubs[end]
+    L̂, _, lb_new, ub_new = prune_output_layer(pruner, net[end], lbs[end], ubs[end], fixed_inact_prev)
+
+    push!(layers, L̂)
+    lbs_new[end] = lb_new
+    ubs_new[end] = ub_new
     return Chain(layers...), lbs_new, ubs_new
 end
