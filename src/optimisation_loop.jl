@@ -6,6 +6,8 @@
     # number of iterations w/o improvement before early stopping
     patience::Int=50
     gradient_tol::Float64=1e-5
+    # stop when y ≤ y_stop
+    y_stop::Float64=-Inf
     # console output
     verbosity::Int=1
     print_freq::Int=50
@@ -103,7 +105,10 @@ function optimise(f, opt, x₀; params=OptimisationParams())
         t_now = time()
         elapsed_time = t_now - t_start
         params.save_times && push!(t_hist, elapsed_time)
-        if grad_norm < params.gradient_tol
+        if y <= params.y_stop
+            println("Stopping criterion reached! y = ", y, " ≤ ", params.y_stop)
+            break
+        elseif grad_norm < params.gradient_tol
             println("Optimisation converged! ||∇f|| = ", grad_norm, " < ", params.gradient_tol)
             break
         elseif steps_no_improvement > params.patience
@@ -172,7 +177,10 @@ function optimise(f, model::Chain, opt; params=OptimisationParams())
         elapsed_time = t_now - t_start
         params.save_times && push!(t_hist, elapsed_time)
         params.save_ys && push!(y_hist, y)
-        if steps_no_improvement > params.patience
+        if y <= params.y_stop
+            println(i, ": Stopping criterion reached! y = ", y, " ≤ ", params.y_stop)
+            break
+        elseif steps_no_improvement > params.patience
             println("No improvement over the last ", params.patience, " iterations. Stopping early.")
             break
         elseif elapsed_time >= params.timeout
