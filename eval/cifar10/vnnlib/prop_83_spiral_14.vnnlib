@@ -9228,15 +9228,15 @@
 (assert (<= X_3071 0.8745098039215686))
 
 ; output constraints
-; unsafe if Y_0 is not maximal
+; unsafe if Y_1 is not maximal
 (assert (or
-	(and (>= Y_1 Y_0))
-	(and (>= Y_2 Y_0))
-	(and (>= Y_3 Y_0))
-	(and (>= Y_4 Y_0))
-	(and (>= Y_5 Y_0))
-	(and (>= Y_6 Y_0))
-	(and (>= Y_7 Y_0))
-	(and (>= Y_8 Y_0))
-	(and (>= Y_9 Y_0))
+	(and (>= Y_0 Y_1))
+	(and (>= Y_2 Y_1))
+	(and (>= Y_3 Y_1))
+	(and (>= Y_4 Y_1))
+	(and (>= Y_5 Y_1))
+	(and (>= Y_6 Y_1))
+	(and (>= Y_7 Y_1))
+	(and (>= Y_8 Y_1))
+	(and (>= Y_9 Y_1))
 ))
