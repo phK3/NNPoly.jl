@@ -92,8 +92,8 @@ function spiral_verification(netpath, propertypath; n_min=1, n_max=50)
 end
 
 
-props = [prop for prop in readdir("../../vnncomp22/mnist_fc/vnnlib", join=true) if contains(prop, "0.05")]
-nets = readdir("../../vnncomp22/mnist_fc/onnx", join=true)
+props = [prop for prop in readdir("../../vnncomp2022_benchmarks/benchmarks/mnist_fc/vnnlib", join=true) if contains(prop, "0.05")]
+nets = readdir("../../vnncomp2022_benchmarks/benchmarks/mnist_fc/onnx", join=true)
 
 loss_lins_all = Dict()
 loss_polys_all = Dict()
