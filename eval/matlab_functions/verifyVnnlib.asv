@@ -53,9 +53,7 @@ function results = verifyVnnlib(instances, method, informat, outformat, varargin
             display(property)
         end
 
-        tic();
         [in_spec, out_spec] = vnnlib2cora(property{1});
-        t_read = toc()
         if isequal(method, 'polyZono')
             tic();
             box = verifyPolyZono(net, in_spec{1})
@@ -72,21 +70,9 @@ function results = verifyVnnlib(instances, method, informat, outformat, varargin
         if ~isempty(varargin{1})
             logfile = varargin{1};
             % write logfile
-            tightness = sum(box.sup - box.inf);
-            if i == 1
-                dlmwrite(logfile, [tightness t], 'delimiter', ',');
-            else
-                dlmwrite(logfile, [tightness t], 'delimiter', ',', '-append');
-            end
-            
-    
-            %T = array2table(tightness);
-            %T.Properties.VariableNames(1) = {'y'};
-            %writetable(T, logfile);
+            tightness(i) = sum(results{i}.sup - results{i}.inf);
+            dlmwrite()
         end
-
-        %s.t. we can use ctrl+c to kill if necessary
-        pause(0.01);
     end
 
 end
