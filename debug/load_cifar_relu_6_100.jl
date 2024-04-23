@@ -14,3 +14,8 @@ div_tensor = reshape([0.20230001211166382, 0.19940000772476196, 0.20100000500679
 xᵢₙ = vec((x .- sub_tensor) ./ div_tensor)
 model(xᵢₙ)
 
+# try larger model
+model = NP.onnx2CROWNNetwork("./eval/cifar10/onnx/cifar_relu_9_200_unnormalized.onnx", add_dummy_output_layer=true)
+model(xᵢₙ)
+
+
