@@ -8,6 +8,10 @@
     gradient_tol::Float64=1e-5
     # stop when y ≤ y_stop
     y_stop::Float64=-Inf
+    # learning rate scheduling
+    start_lr::Float54=1e-3
+    decay::Float64=1.
+    min_lr::Float64=1e-3
     # console output
     verbosity::Int=1
     print_freq::Int=50
@@ -47,6 +51,15 @@ end
 
 # Projection doesn't need any state
 Optimisers.init(o::Projection, x::AbstractArray) = nothing
+
+
+struct ExpDecayClipped{N<:Number} <: ParameterSchedulers.AbstractSchedule{false}
+    start::N
+    decay::N
+    min_η::N
+end
+
+(schedule::ExpDecayClipped)(t) = max(schedule.min_η, schedule.start * schedule.decay^t)
 
 
 
@@ -153,6 +166,7 @@ function optimise(f, model::Chain, opt; params=OptimisationParams())
     # TODO: is there an abstract type for all Flux models, not just Chain?
     t_start = time()
     
+    sched = ParameterSchedulers.Stateful(ExpDecayClipped(params.start_lr, params.decay, params.min_lr))
     state_tree = Optimisers.setup(opt, model)
 
     # x_best = x  # how can we get the best params?
@@ -160,6 +174,9 @@ function optimise(f, model::Chain, opt; params=OptimisationParams())
     steps_no_improvement = 0
     y_hist = Float64[]
     t_hist = Float64[]
+
+    #mem_before = Sys.free_memory() / 2^20
+    #@show mem_before
 
     for i in 1:params.n_steps
         y, ∇model = withgradient(model) do m
@@ -192,7 +209,19 @@ function optimise(f, model::Chain, opt; params=OptimisationParams())
             println(i, ": ", y)
         end
 
+        #=
+        if mem_before < 1000
+            GC.gc()
+        end
+        mem_after = Sys.free_memory() / 2^20
+        @show mem_before - mem_after
+        mem_before = mem_after
+        =#
+
         Optimisers.update!(state_tree, model, ∇model[1])
+
+        next_lr = ParameterSchedulers.next!(sched)
+        Optimisers.adjust!(state_tree, next_lr)
     end
 
     # don't really need to return params here since they should be modified in-place in the model
