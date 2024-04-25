@@ -279,7 +279,7 @@ end
 """
 Shifts the starting point of the polynomial by a vector v.
 """
-function translate(sp::SparsePolynomial, v::AbstractVector)
+function translate(sp::SparsePolynomial{N,M,T,GM,EM,VI}, v::AbstractVector) where {N,M,T,GM,EM,VI}
     const_idx = @ignore_derivatives findfirst(x -> sum(x) == 0, eachcol(sp.E))
 
     if isnothing(const_idx)
@@ -288,7 +288,7 @@ function translate(sp::SparsePolynomial, v::AbstractVector)
     else
         other_idxs = @ignore_derivatives 1:size(sp.G, 2) .!= const_idx
         Ĝ = [sp.G[:,const_idx] .+ v sp.G[:,other_idxs]]
-        Ê = [sp.E[:,const_idx] sp.E[:,other_idxs]]
+        Ê = @ignore_derivatives [sp.E[:,const_idx] sp.E[:,other_idxs]]
     end
 
     return SparsePolynomial(Ĝ, Ê, sp.ids)
@@ -588,11 +588,11 @@ end
 Computes interval bounds for each component of a sparse polynomial.
 Variables are assumed to be in range [-1, 1].
 """
-function bounds(sp::SparsePolynomial)
+function bounds(sp::SparsePolynomial{N,M,T,GM,EM,VI}) where {N,M,T,GM,EM,VI}
     lbs, ubs = exponent_bounds(sp)
 
-    G⁻ = min.(0, sp.G)
-    G⁺ = max.(0, sp.G)
+    G⁻ = min.(zero(N), sp.G)
+    G⁺ = max.(zero(N), sp.G)
     lb = G⁻ * ubs .+ G⁺ * lbs
     ub = G⁻ * lbs .+ G⁺ * ubs
 
