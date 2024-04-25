@@ -9,7 +9,7 @@
     # stop when y ≤ y_stop
     y_stop::Float64=-Inf
     # learning rate scheduling
-    start_lr::Float54=1e-3
+    start_lr::Float64=1e-3
     decay::Float64=1.
     min_lr::Float64=1e-3
     # console output
