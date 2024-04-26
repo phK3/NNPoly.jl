@@ -1,4 +1,4 @@
-using NNPoly, JLD2, MKL, Dates
+using NNPoly, JLD2, MKL, Dates, CSV, LazySets, LinearAlgebra
 import NNPoly: PolyCROWN, verify_vnnlib
 const NP = NNPoly
 
@@ -15,7 +15,7 @@ date_string = Dates.format(current_time, "yyyy-mm-dd_HH-MM-SS")
 patience = 1
 properties = 1:100
 n_unfixed = [27]
-radii = 5:128
+radii = 5:50
 model_paths = [CIFAR_PATH * "/onnx/cifar_relu_6_100_unnormalized.onnx", CIFAR_PATH * "/onnx/cifar_relu_9_200_unnormalized.onnx"]
 #model_paths = [CIFAR_PATH * "/onnx/cifar_relu_9_200_unnormalized.onnx"]
 params = NP.OptimisationParams(n_steps=typemax(Int), timeout=120., print_freq=25, y_stop=0., save_ys=true, save_times=true, start_lr=0.1, decay=0.98)
