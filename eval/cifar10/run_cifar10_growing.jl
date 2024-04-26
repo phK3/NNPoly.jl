@@ -57,7 +57,7 @@ for model_path in model_paths
             end
 
             #save(logfile_prefix * "/$(model_name)_$(prop)_$(n_un).jld2", "result", verified, "time", t, "t_hist", res.t_hist, "y_hist", res.y_hist)
-            hist_file_name = logfile_prefix * "$(model_name)_$(prop)_$(n_un)_hist.jld2"
+            hist_file_name = logfile_prefix * "$(model_name)_$(prop)_$(n_un)_hist_" * date_string * ".jld2"
             save(hist_file_name, "t_hist", res.t_hist, "y_hist", res.y_hist)
 
             open(logfile, "a") do f
