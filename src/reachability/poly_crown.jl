@@ -289,7 +289,7 @@ function forward_act_stub(solver::DiffNNPolySym, L::CROWNLayer{NV.ReLU, MN, BN, 
 end
 
 
-function optimise_bounds(solver::PolyCROWN, net::Chain, input_set::Hyperrectangle; opt=Flux.OptimiserChain(Flux.Adam()), params=OptimisationParams(), loss_fun=bounds_loss, print_results=false)
+function optimise_bounds(solver::PolyCROWN, net::Chain, input_set::Hyperrectangle; opt=Optimisers.Adam(), params=OptimisationParams(), loss_fun=bounds_loss, print_results=false)
     psolver = solver.poly_solver
     # TODO: implement method for Chain
     s = initialize_symbolic_domain(solver, net[1:solver.poly_layers], input_set)

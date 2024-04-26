@@ -1,5 +1,73 @@
 
 
+function ChainRulesCore.rrule(::typeof(bounds), sp::SparsePolynomial{N,M,T,GM,EM,VI}) where {N,M,T,GM,EM,VI}
+    lbs, ubs = exponent_bounds(sp)
+
+    #G⁻ = min.(zero(N), sp.G)
+    #G⁺ = max.(zero(N), sp.G)
+    #lb = G⁻ * ubs .+ G⁺ * lbs
+    #ub = G⁻ * lbs .+ G⁺ * ubs
+    # about 2x as fast, since we save a matrix vector product each time
+    lb = vec(sum(sp.G .* ifelse.(sp.G .> 0, lbs', ubs'), dims=2))
+    ub = vec(sum(sp.G .* ifelse.(sp.G .> 0, ubs', lbs'), dims=2))
+
+    function bounds_pullback(Δt)
+        Δlb, Δub = Δt
+
+        Δsp = @thunk(begin
+            #ΔGl = Δlb .* ifelse.(sp.G .> 0, lbs', ubs')
+            #ΔGu = Δub .* ifelse.(sp.G .> 0, ubs', lbs')
+            # kind of ugly, but when I write it all in one fused . notation line, it needs less memory
+            Tangent{SparsePolynomial}(G=Δlb .* ifelse.(sp.G .> 0, lbs', ubs') .+ Δub .* ifelse.(sp.G .> 0, ubs', lbs'), E=NoTangent(), ids=NoTangent())
+        end)
+
+        return NoTangent(), Δsp
+    end
+
+    return (lb, ub), bounds_pullback
+end
+
+
+function ChainRulesCore.rrule(::typeof(translate), sp::SparsePolynomial{N,M,T,GM,EM,VI}, v::AbstractVector) where {N,M,T,GM,EM,VI}
+    const_idx = findfirst(x -> sum(x) == 0, eachcol(sp.E))
+
+    if isnothing(const_idx)
+        Ĝ = [v sp.G]
+        Ê = [zeros(M, size(sp.E, 1)) sp.E]
+        ŝp = SparsePolynomial(Ĝ, Ê, sp.ids)
+    else
+        Ĝ = copy(sp.G) #zeros(N, size(sp.G))
+        Ĝ[:,const_idx] .+= v
+        ŝp = SparsePolynomial(Ĝ, sp.E, sp.ids)
+    end
+
+
+    function translate_pullback(Δŝp)
+        ΔĜ = Δŝp.G
+
+        if isnothing(const_idx)
+            # derivative is just the identity for the non-constant part and zero for the constant part (that's just the vector v)
+            # other_idxs = 1:size(sp.G, 2) .!= const_idx
+            Δsp = Tangent{SparsePolynomial}(G=ΔĜ[:,2:end], E=NoTangent(), ids=NoTangent())
+            Δv  = ΔĜ[:,1]
+        else
+            # we just added some values to the constant column, so just identity for all elements of G
+            Δsp = Tangent{SparsePolynomial}(G=ΔĜ, E=NoTangent(), ids=NoTangent())
+            # derivative is just identity at column where we added the vector, zero elsewhere
+            Δv  = ΔĜ[:,const_idx]
+        end
+
+        return NoTangent(), Δsp, Δv
+    end
+
+    return ŝp, translate_pullback
+end
+
+
+
+## Rules for quadratic propagation
+
+
 # only raise matrix elements to power if exponent is non-zero
 function non_zero_power(m::AbstractVecOrMat, e::AbstractVector)
     mask = e .!= 0
