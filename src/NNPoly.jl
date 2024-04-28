@@ -14,6 +14,7 @@ Base.:-(x::Nothing) = nothing  # can't really get zero(nothing)
 include("utils.jl")
 include("network.jl")
 include("optimisation_loop.jl")
+include("attacks.jl")
 
 include("simplification/zero_pruner.jl")
 include("simplification/merge_specification.jl")
