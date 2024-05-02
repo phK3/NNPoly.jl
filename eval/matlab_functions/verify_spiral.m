@@ -64,10 +64,10 @@ function results = verify_spiral(instances, informat, varargin)
 
         [res, x, bounds_hist, t_hist] = verify_bounds(net, in_spec{1}, out_spec, 'Splits', 0, 'Verbose', true, 'RefinementSteps', 1000, 'Timeout', timeout);
 
-        row = {netname, prop, res, strcat("""", strjoin(string(bounds_hist)), """"), strcat("""", strjoin(string(t_hist)), """")};
+        row = {netname, prop, n_unfixed, res, strcat("""", strjoin(string(bounds_hist)), """"), strcat("""", strjoin(string(t_hist)), """")};
         T = array2table(row);
         if i == 1
-            T.Properties.VariableNames = {'network', 'property', 'verified', 'bounds_hist', 't_hist'};
+            T.Properties.VariableNames = {'network', 'property', 'n_unfixed','verified', 'bounds_hist', 't_hist'};
         end
         writetable(T, logfile, 'WriteMode', 'append');
     end
