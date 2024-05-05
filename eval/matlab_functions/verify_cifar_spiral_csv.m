@@ -21,8 +21,8 @@ function results = verify_cifar_csv(instances, informat, varargin)
     lbs = data(:,4:4+3071);
     ubs = data(:,3076:end);
 
-    networks = ["../NNPoly.jl/eval/cifar10/onnx/cifar_relu_6_100_unnormalized.onnx", ...
-                "../NNPoly.jl/eval/cifar10/onnx/cifar_relu_9_200_unnormalized.onnx"];
+    networks = ["VerifyNN/NNPoly.jl/eval/cifar10/onnx/cifar_relu_6_100_unnormalized.onnx", ...
+                "VerifyNN/NNPoly.jl/eval/cifar10/onnx/cifar_relu_9_200_unnormalized.onnx"];
 
     n_unfixed = -1;
     prop = -1;
