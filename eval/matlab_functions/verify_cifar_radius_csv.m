@@ -1,4 +1,4 @@
-function results = verify_cifar_spiral_csv(instances, informat, varargin)
+function results = verify_cifar_radius_csv(instances, informat, varargin)
 % verify_cifar_csv - Propagate input specification through the neural network
 % to compute output bounds.
 %
@@ -11,22 +11,24 @@ function results = verify_cifar_spiral_csv(instances, informat, varargin)
 % spatial, channel)
 % outformat - e.g. 'BC'
 % logfile - path to store results
-    [varargin,logfile] = readNameValuePair(varargin,'Logfile','isstring',"logs_cifar.txt");
+    [varargin,logfile] = readNameValuePair(varargin,'Logfile','isstring',"logs_cora_cifar_radius.csv");
     [varargin,timeout] = readNameValuePair(varargin,'Timeout','isscalar',120);
 
     data = readmatrix(instances);
     props = data(:,1);
     n_unfixeds = data(:,2);
-    labels = data(:,3);
-    lbs = data(:,4:4+3071);
-    ubs = data(:,3076:end);
+    radii = data(:,3);
+    labels = data(:,4);
+    lbs = data(:,5:5+3071);
+    ubs = data(:,5+3072:end);
 
-    networks = ["VerifyNN/NNPoly.jl/eval/cifar10/onnx/cifar_relu_6_100_unnormalized.onnx", ...
-                "VerifyNN/NNPoly.jl/eval/cifar10/onnx/cifar_relu_9_200_unnormalized.onnx"];
+    networks = ["../NNPoly.jl/eval/cifar10/onnx/cifar_relu_6_100_unnormalized.onnx", ...
+                "../NNPoly.jl/eval/cifar10/onnx/cifar_relu_9_200_unnormalized.onnx"];
 
     n_unfixed = -1;
     prop = -1;
     n_unfixed_old = -1;
+    radius_old = -1;
     prop_old = -1;
     netOld = '';
     res = true;
@@ -36,6 +38,7 @@ function results = verify_cifar_spiral_csv(instances, informat, varargin)
         for i = 1:size(props, 1)
             prop = props(i);     
             n_unfixed = n_unfixeds(i);
+            radius = radii(i);
     
             % only load onnx network, if it is not already loaded from a
             % previous iteration (it's quite time intensive
@@ -45,7 +48,7 @@ function results = verify_cifar_spiral_csv(instances, informat, varargin)
                 net = neuralNetwork.readONNXNetwork(netname, false, informat);
             end
     
-            fprintf("checking property %d with %d unfixed inputs", prop, n_unfixed)
+            fprintf("checking property %d with %d unfixed inputs and radius %d", prop, n_unfixed, radius)
     
             if isequal(res, []) && isequal(prop_old, prop) && isequal(netOld, netname)
                 % if we already weren't able to verify lower spiral, just skip
@@ -67,6 +70,7 @@ function results = verify_cifar_spiral_csv(instances, informat, varargin)
 
             prop_old = prop;
             n_unfixed_old = n_unfixed;
+            radius_old = radius;
         end
     end
 
