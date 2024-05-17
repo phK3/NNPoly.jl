@@ -26,6 +26,10 @@ Manifest.toml
 # ignore compiled vnnlib files
 *.vnnlib.compiled
 
+# ignore vnnlib files in the cifar folders (way too many)
+eval/cifar10/vnnlib/*.vnnlib
+
+
 # ignore too large zip files
 eval/cifar10/vnnlib/cifar_radius.zip
 eval/cifar10/vnnlib/cifar_spiral.zip
