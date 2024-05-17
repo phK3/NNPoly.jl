@@ -185,7 +185,8 @@ function initialize_params_bounds(solver::PolyCROWN, net, degree::N, input) wher
     ipsolver = DiffNNPolySym(truncation_terms=psolver.truncation_terms,
                                 separate_relaxations=psolver.separate_relaxations,
                                 relaxations=psolver.relaxations, splitting_depth=psolver.splitting_depth,
-                                init=true, save_bounds=psolver.save_bounds,
+                                init=true, init_method=psolver.init_method, 
+                                save_bounds=psolver.save_bounds,
                                 common_generators=psolver.common_generators)
     ŝ = forward_linear(ipsolver, net[1], input)
 
@@ -278,6 +279,21 @@ function forward_act_stub(solver::DiffNNPolySym, L::CROWNLayer{NV.ReLU, MN, BN, 
         # CROWNQuad is quadratic relaxation, so set first two params
         L.α[:, 1:2, 1] .= cₗ[:,2:3]
         L.α[:, 1:2, 2] .= cᵤ[:,2:3]
+    elseif solver.init && solver.init_method == :linear
+        # linear CROWN initialisation
+        cₗ = NV.relaxed_relu_gradient_lower.(l, u)
+        cᵤ = NV.relaxed_relu_gradient.(l, u)
+        
+        # only need to set the slope, shifting takes care of the rest
+        L.α[:,1,1] .= cₗ
+        L.α[:,1,2] .= cᵤ
+        # need to set quad-part to zero, because is only initialized with similar(...)
+        L.α[:,2,1] .= 0
+        L.α[:,2,2] .= 0
+
+        # need full monomials to propagate through quad_prop_common
+        cₗ = get_lower_polynomial_shift(l, u, 2, L.α[:, :, 1])
+        cᵤ = get_upper_polynomial_shift(l, u, 2, L.α[:, :, 2])
     else
         cₗ = get_lower_polynomial_shift(l, u, 2, L.α[:, :, 1])
         cᵤ = get_upper_polynomial_shift(l, u, 2, L.α[:, :, 2])

@@ -211,7 +211,7 @@ implicit_poly_min = ImplicitFunction(forward_poly_minimizer, conditions_poly_min
 function poly_minimum_quad(C, l, u)
     @assert size(C, 2) == 3 "only quadratic polynomials are allowed in poly_minimum_quad!!!"
     div0mask = C[:,3] .== 0
-    # if c₂ == 0 then l else -c₁ / (2c₂) for quadratics
+    # if c₂ == 0 then l (if min at u, it is overwritten later on by comparison with y_bounds) else -c₁ / (2c₂) for quadratics
     # still need ... .+ div0mask .* 1 for avoiding NaN in the backward pass. 
     # Since ifelse is branchless, Zygote evaluates both branches and adds the results back together, which
     # would propagate the NaN to the overall gradient if there is NaN in the div0 branch
