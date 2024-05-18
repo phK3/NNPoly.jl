@@ -4,7 +4,7 @@ const NP = NNPoly
 
 CIFAR_PATH = "./eval/cifar10"
 
-function run_cifar10_growing_lin_init_experiment(; patience=2, properties=1:100, n_unfixed=[27], radii=5:50)
+function run_cifar10_radius_growing_lin_init_experiment(; patience=2, properties=1:100, n_unfixed=[27], radii=5:50)
     solver = PolyCROWN(NP.DiffNNPolySym(common_generators=true, init_method=:linear))
 
     current_time = Dates.now()
@@ -73,7 +73,7 @@ end
 
 
 println("precompiling ...")
-run_cifar10_growing_lin_init_experiment(patience=0, properties=1:1, radii=[5,10])
+run_cifar10_radius_growing_lin_init_experiment(patience=0, properties=1:1, radii=[5,10])
 
 println("running experiments ...")
-run_cifar10_growing_lin_init_experiment(patience=2, properties=1:100, radii=5:50)
+run_cifar10_radius_growing_lin_init_experiment(patience=2, properties=1:100, radii=5:50)
