@@ -21,6 +21,8 @@ function results = verify_spiral(instances, informat, varargin)
     opts.Delimiter = {','};
     instances = readtable(instances, opts);
 
+    patience = 2;
+    steps_unknown = 0;
     n_unfixed = -1;
     prop = -1;
     n_unfixed_old = -1;
@@ -29,11 +31,14 @@ function results = verify_spiral(instances, informat, varargin)
     res = true;
     results = cell(size(instances, 1), 1);
     for i = 1:size(instances, 1)
-        %TODO: only for the acas networks as they need vnnlib!!!
+        if ~isequal(prop_old, prop)
+            steps_unkown = 0;
+        end
+        
         row = instances(i,:);
         netname = row.network{1};
         % only load onnx network, if it is not already loaded from a
-        % previous iteration (it's quite time intensive
+        % previous iteration (it's quite time consuming)
         if ~strcmp(netname, netOld)
             netOld = netname;
             net = strcat(filepath, '/', netname);
@@ -57,7 +62,11 @@ function results = verify_spiral(instances, informat, varargin)
         if isequal(res, []) && isequal(prop_old, prop) && isequal(netOld, netname)
             % if we already weren't able to verify lower spiral, just skip
             % the larger ones
-            continue
+            steps_unknown = steps_unknown + 1;
+
+            if steps_unknown >= patience
+                continue
+            end
         end
 
         [in_spec, out_spec] = vnnlib2cora(property);
