@@ -354,6 +354,9 @@ t_hist = [];
 print_step = 0;
 tic();
 nn.reset();
+
+best_vio = Inf;
+steps_no_improv = 0;
 % evaluate neural network
 for i = 1:numRefineSteps
     X = polyZonotope(X);
@@ -403,7 +406,16 @@ for i = 1:numRefineSteps
         return
     end
 
+    if viosum < best_vio
+        best_vio = viosum;
+        steps_no_improv = 0;
+    else
+        steps_no_improv = steps_no_improv + 1;
+    end
+
     if toc() > timeout  % timeout
+        return
+    elseif steps_no_improv > 50  % early stopping
         return
     end
 
