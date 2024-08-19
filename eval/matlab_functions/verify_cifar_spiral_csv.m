@@ -24,6 +24,8 @@ function results = verify_cifar_spiral_csv(instances, informat, varargin)
     networks = ["VerifyNN/NNPoly.jl/eval/cifar10/onnx/cifar_relu_6_100_unnormalized.onnx", ...
                 "VerifyNN/NNPoly.jl/eval/cifar10/onnx/cifar_relu_9_200_unnormalized.onnx"];
 
+    patience = 2;
+    steps_unknown = 0;
     n_unfixed = -1;
     prop = -1;
     n_unfixed_old = -1;
@@ -36,6 +38,10 @@ function results = verify_cifar_spiral_csv(instances, informat, varargin)
         for i = 1:size(props, 1)
             prop = props(i);     
             n_unfixed = n_unfixeds(i);
+
+            if ~isequal(prop_old, prop)
+                steps_unkown = 0;
+            end
     
             % only load onnx network, if it is not already loaded from a
             % previous iteration (it's quite time intensive
@@ -50,7 +56,11 @@ function results = verify_cifar_spiral_csv(instances, informat, varargin)
             if isequal(res, []) && isequal(prop_old, prop) && isequal(netOld, netname)
                 % if we already weren't able to verify lower spiral, just skip
                 % the larger ones
-                continue
+                steps_unknown = steps_unknown + 1;
+    
+                if steps_unknown >= patience
+                    continue
+                end
             end
     
             in_spec  = aux_create_input_spec(lbs(i,:), ubs(i,:));
