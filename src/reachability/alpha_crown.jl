@@ -253,7 +253,7 @@ kwargs:
     lbs - (defaults to nothing) possible to use precomputed bounds
     ubs - (defaults to nothing) possible to use precomputed bounds
 """
-function propagate(solver::aCROWN, net, input::Hyperrectangle, lbs, ubs; printing=false)   
+function propagate(solver::aCROWN, net, input::Hyperrectangle, lbs, ubs; loss_fun=bounds_loss, printing=false)   
     s = NV.forward_network(solver, net, input, lbs, ubs)
     
     ll, lu = bounds(s.Λ, s.λ, s.domain)
@@ -263,17 +263,17 @@ function propagate(solver::aCROWN, net, input::Hyperrectangle, lbs, ubs; printin
     printing && println("ubs = ", uu)
 
     # for now, minimize range between all outputs
-    loss = sum(uu - ll)
+    loss = loss_fun(ll, uu)
     return loss
 end
 
 
 # both Flux reexports Adam and OptimserChain colliding with Optimisers itself -> need to prefix with either Flux or Optimisers (which one doesn't matter)
 function optimise_bounds(solver::aCROWN, net, input_set::Hyperrectangle; opt=Optimisers.OptimiserChain(Optimisers.Adam(), Projection(0., 1.)),
-                         params::OptimisationParams=OptimisationParams(), print_result=false)
+                         params::OptimisationParams=OptimisationParams(), loss_fun=bounds_loss, print_result=false)
     lbs0, ubs0 = initialize_params_bounds(solver, net, 1, input_set)
 
-    optfun = net -> propagate(solver, net, input_set, lbs0, ubs0)
+    optfun = net -> propagate(solver, net, input_set, lbs0, ubs0, loss_fun=loss_fun)
 
     res = optimise(optfun, net, opt, params=params)
 
