@@ -25,3 +25,24 @@ solver = NP.PolyCROWN(NP.DiffNNPolySym(common_generators=true), prune_neurons=tr
 # verify the first 3 properties described in ./eval/mnist_fc/instances.csv
 NP.verify_vnnlib(solver, "./eval/mnist_fc", max_properties=3, loss_fun=NP.violation_loss)
 ```
+
+## Installation
+
+An installation of Julia is required.
+
+- clone the `NNPoly.jl` github repo
+- navigate to the repo's root
+- start Julia (simply type `julia` in your shell)
+- type `]` to start the Julia package manager
+
+Then execute
+```julia
+] activate .
+] rm NeuralVerification, VnnlibParser, OnnxReader
+] add https://github.com/phk3/VnnlibParser.jl
+] add https://github.com/phk3/OnnxReader.jl
+] add https://github.com/phk3/NeuralVerification.jl
+] instantiate
+```
+
+The above packages have to be removed and then reinstalled as they are not available via Julia's general registry and are thus not identifiable only by their name.
