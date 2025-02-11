@@ -1,7 +1,7 @@
 name = "NNPoly"
 uuid = "c457b541-9f16-4a87-8cff-07b88ffb2172"
 authors = ["phK3 <ufedz@student.kit.edu>"]
-version = "0.1.0"
+version = "1.0.1"
 
 [deps]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
@@ -42,5 +42,7 @@ Zygote = "e88e6eb3-aa80-5325-afca-941959d7151f"
 ZygoteRules = "700de1a5-db45-46bc-99cf-38207098b444"
 libblastrampoline_jll = "8e850b90-86db-534c-a0d3-1478176c7d93"
 
-[compat]
-Zygote = "0.6.67 - 0.6.69"
+[sources]
+OnnxReader = {url = "https://github.com/phK3/OnnxReader.jl"}
+VnnlibParser = {url = "https://github.com/phK3/VnnlibParser.jl"}
+NeuralVerification = {url = "https://github.com/phK3/NeuralVerification.jl"}

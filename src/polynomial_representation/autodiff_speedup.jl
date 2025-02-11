@@ -43,6 +43,7 @@ function ChainRulesCore.rrule(::typeof(translate), sp::SparsePolynomial{N,M,T,GM
 
 
     function translate_pullback(Δŝp)
+        Δŝp = unthunk(Δŝp)
         ΔĜ = Δŝp.G
 
         if isnothing(const_idx)
