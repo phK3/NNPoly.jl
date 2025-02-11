@@ -50,6 +50,7 @@ The above packages have to be removed and then reinstalled as they are not avail
 
 ## Citation
 
+```
 @inproceedings{kernSinz2024,
   author    = {Philipp Kern and Carsten Sinz},
   editor    = {Roberto Giacobazzi and Alessandra Gorla},
@@ -63,3 +64,4 @@ The above packages have to be removed and then reinstalled as they are not avail
   isbn      = {978-3-031-74776-2},
   doi	    = {10.1007/978-3-031-74776-2_7}
 }
+```
