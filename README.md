@@ -46,3 +46,20 @@ Then execute
 ```
 
 The above packages have to be removed and then reinstalled as they are not available via Julia's general registry and are thus not identifiable only by their name.
+
+
+## Citation
+
+@inproceedings{kernSinz2024,
+  author    = {Philipp Kern and Carsten Sinz},
+  editor    = {Roberto Giacobazzi and Alessandra Gorla},
+  title     = {Abstract Interpretation of ReLU Neural Networks with Optimizable Polynomial Relaxations},
+  booktitle = {31st Symposium on Static Analysis ({SAS} 2024), Pasadena, USA, October 20-22, 2024},
+  year      = {2024},
+  month     = oct,
+  publisher = {Springer Nature Switzerland},
+  address   = {Cham},
+  pages     = {173--193},
+  isbn      = {978-3-031-74776-2},
+  doi	    = {10.1007/978-3-031-74776-2_7}
+}
