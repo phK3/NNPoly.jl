@@ -28,7 +28,7 @@ NP.verify_vnnlib(solver, "./eval/mnist_fc", max_properties=3, loss_fun=NP.violat
 
 ## Installation
 
-An installation of Julia (Julia 1.9.3, 1.10.5 and 1.11 are tested) is required.
+An installation of Julia (Julia 1.11 is tested) is required.
 
 - clone the `NNPoly.jl` github repo
 - navigate to the repo's root
@@ -38,15 +38,8 @@ An installation of Julia (Julia 1.9.3, 1.10.5 and 1.11 are tested) is required.
 Then execute
 ```julia
 ] activate .
-] rm NeuralVerification, VnnlibParser, OnnxReader
-] add https://github.com/phk3/VnnlibParser.jl
-] add https://github.com/phk3/OnnxReader.jl
-] add https://github.com/phk3/NeuralVerification.jl
 ] instantiate
 ```
-
-The above packages have to be removed and then reinstalled as they are not available via Julia's general registry and are thus not identifiable only by their name.
-
 
 ## Citation
 
