@@ -28,7 +28,7 @@ NP.verify_vnnlib(solver, "./eval/mnist_fc", max_properties=3, loss_fun=NP.violat
 
 ## Installation
 
-An installation of Julia is required.
+An installation of Julia (Julia 1.9.4 and 1.10.5 are tested) is required.
 
 - clone the `NNPoly.jl` github repo
 - navigate to the repo's root
