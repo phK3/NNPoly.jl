@@ -47,7 +47,7 @@ include("reachability/diff_poly_interval.jl")
 include("reachability/diff_poly_sym.jl")
 include("reachability/poly_crown.jl")
 
-include("mip.jl")
+include("mip/mip.jl")
 
 include("vnnlib.jl")
 
