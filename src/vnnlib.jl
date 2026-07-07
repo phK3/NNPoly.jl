@@ -1,4 +1,36 @@
 
+using CodecZlib
+
+using CodecZlib
+
+function with_uncompressed_file(f::Function, path::AbstractString)
+    # Target path if we need to decompress it
+    gz_path = endswith(path, ".gz") ? path : path * ".gz"
+    
+    # If the user passed a path that doesn't end in .gz, BUT the .gz file exists:
+    # Or if they passed the .gz file directly:
+    if isfile(gz_path)
+        return mktempdir() do tmp_dir
+            # Extract base name correctly (handles both file.onnx and file.onnx.gz)
+            base_name = endswith(path, ".gz") ? splitext(basename(path))[1] : basename(path)
+            tmp_path = joinpath(tmp_dir, base_name)
+
+            # Decompress
+            open(GzipDecompressorStream, gz_path) do gz_stream
+                open(tmp_path, "w") do tmp_io
+                    write(tmp_io, gz_stream)
+                end
+            end
+
+            return f(tmp_path)
+        end
+    elseif isfile(path)
+        # It's a normal uncompressed file that already exists on disk
+        return f(path)
+    else
+        error("Neither the uncompressed file ($path) nor its compressed archive ($gz_path) could be found.")
+    end
+end
 
 """
 Generates specification for NeuralPriorityOptimizer from result value from vnnlib parser.
@@ -134,7 +166,9 @@ function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing,
 
         if netpath != old_netpath
             println("-- loading network ", netpath)
-            net = read_onnx_network(string(dir, "/", netpath), dtype=Float64)
+            net = with_uncompressed_file(joinpath(dir, netpath)) do net_file
+                read_onnx_network(net_file, dtype=Float64)
+            end
             old_netpath = netpath
 
             net_npi = NV.NetworkNegPosIdx(net)
@@ -143,7 +177,11 @@ function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing,
             n_out = NV.n_nodes(net.layers[end])
         end
 
-        rv = read_vnnlib_simple(string(dir, "/", propertypath), n_in, n_out)
+        @show joinpath(dir, propertypath)
+
+        rv = with_uncompressed_file(joinpath(dir, propertypath)) do prop_file
+            read_vnnlib_simple(prop_file, n_in, n_out)
+        end
         specs = generate_specs(rv)
         input_set, output_set = specs[1]  # for now just use one set (we only care about the input set anyways here)
 
@@ -151,24 +189,30 @@ function verify_vnnlib(solver, dir, params::OptimisationParams; logfile=nothing,
         println("--- initial α ---")
         s = initialize_symbolic_domain(solver, net_npi, input_set)
         α0 = initialize_params(solver, net_npi, 2, s)
-        y_start = propagate(solver, net_npi, s, α0; printing=true)
+        time_start = @elapsed y_start = propagate(solver, net_npi, s, α0; printing=true)
 
-        println("--- optimisation ---")
-        time = @elapsed res = optimise_bounds(solver, net_npi, input_set, params=params)
-        α₁ = res.x_opt
+        if params.n_steps > 0
+            println("--- optimisation ---")
+            time = @elapsed res = optimise_bounds(solver, net_npi, input_set, params=params)
+            α₁ = res.x_opt
 
-        println("\ttime = ", time)
-        println("--- optimised α ---")
-        propagate(solver, net_npi, s, α₁; printing=true)
+            println("\ttime = ", time)
+            println("--- optimised α ---")
+            propagate(solver, net_npi, s, α₁; printing=true)
+
+            ys[i] = res.y_hist[end]
+            times[i] = time
+            save_history && push!(y_hists, res.y_hist)
+            save_times && push!(t_hists, res.t_hist)
+        else
+            ys[i] = y_start
+            times[i] = time_start
+        end
 
         push!(networks, netpath)
         push!(properties, propertypath)
         #push!(results, result)
-        times[i] = time
         y_starts[i] = y_start
-        ys[i] = res.y_hist[end]
-        save_history && push!(y_hists, res.y_hist)
-        save_times && push!(t_hists, res.t_hist)
 
         cnt += 1
         if cnt >= max_properties

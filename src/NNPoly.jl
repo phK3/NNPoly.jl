@@ -2,7 +2,8 @@ module NNPoly
 
 using LazySets, DynamicPolynomials, RecipesBase, DataStructures, NeuralVerification,
         Parameters, LinearAlgebra, Zygote, SparseArrays, ChainRulesCore, Combinatorics,
-        Optimisers, ComponentArrays, ImplicitDifferentiation, CSV, JLD2, VnnlibParser
+        Optimisers, ComponentArrays, ImplicitDifferentiation, CSV, JLD2, VnnlibParser,
+        CodecZlib
 const NV = NeuralVerification
 
 # Zygote also uses nothing for zero gradient, so need this to be defined
