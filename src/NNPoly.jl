@@ -47,6 +47,12 @@ include("reachability/diff_poly_interval.jl")
 include("reachability/diff_poly_sym.jl")
 include("reachability/poly_crown.jl")
 
+# include DPNeurifyFV for comparison
+include("reachability/dpneurifyfv/util.jl")
+include("reachability/dpneurifyfv/symbolic_interval_fv_heur.jl")
+include("reachability/dpneurifyfv/fresh_var_heuristic.jl")
+include("reachability/dpneurifyfv/dp_neurify_fv.jl")
+
 include("mip/mip.jl")
 
 include("vnnlib.jl")
