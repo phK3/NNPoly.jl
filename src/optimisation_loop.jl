@@ -136,7 +136,10 @@ function optimise(f, opt, x₀; params=OptimisationParams())
         Optimisers.update!(opt_state, x, ∇f)
 
         if i > 1 && params.save_cosine_similarity
-            csim = (last_update' * (last_x .- x)) / (norm(last_update) * norm(last_x .- x))
+            prev = vec(last_update)
+            delta = vec(last_x .- x)
+            denom = norm(prev) * norm(delta)
+            csim = denom == 0 ? 1.0 : dot(prev, delta) / denom
             push!(csims, csim)
         end
         last_update = last_x .- x
@@ -179,7 +182,7 @@ function optimise(f, model::Chain, opt; params=OptimisationParams())
     #@show mem_before
 
     for i in 1:params.n_steps
-        y, ∇model = withgradient(model) do m
+        y, ∇model = Flux.withgradient(model) do m
             f(m)
         end
 
