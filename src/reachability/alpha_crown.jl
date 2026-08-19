@@ -74,8 +74,9 @@ function backward_act(solver::aCROWN, L::CROWNLayer{NV.ReLU, MN, BN, AN}, input:
 
         # need to clamp α value, since we can't use projection for whole optimisation values, when we
         # polynomially relax the first layer
-        # aₗ = crossing .* clamp.(α, 0, 1) .+ fixed_active
-        crossing .* clamp.(L.α, zero(N), one(N)) .+ fixed_active
+        # leaky_clamp acts like clamp in forward pass, but like straight-through-estimator in backward pass,
+        # so we get a gradient even if α ∉ [0, 1]
+        crossing .* leaky_clamp(L.α, zero(N), one(N)) .+ fixed_active
     end
 
     aᵤ = relaxed_relu_gradient_vectorized(lbs, ubs)
