@@ -31,7 +31,7 @@ function make_crown_chain(Ws::Vector{Matrix{Float64}}, bs::Vector{Vector{Float64
         if i == 1 && poly
             α = similar(bs[i], length(bs[i]), 2, 2)
         else
-            α = similar(bs[i])
+            α = similar(bs[i], length(bs[i]), 1)
         end
         push!(layers, NP.CROWNLayer(Ws[i], bs[i], NV.ReLU(), α))
     end

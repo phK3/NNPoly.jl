@@ -35,7 +35,7 @@ else
     L2 = NP.CROWNLayer(W2, b2, NV.Id(), similar(b2, 0))
     net_pcrown = Chain(L1, L2)
 
-    L1 = NP.CROWNLayer(W1, b1, NV.ReLU(), similar(b1, length(b1), 2))
+    L1 = NP.CROWNLayer(W1, b1, NV.ReLU(), similar(b1, length(b1), 1))
     L2 = NP.CROWNLayer(W2, b2, NV.Id(), similar(b2, 0))
     net_crown = Chain(L1, L2)
 
