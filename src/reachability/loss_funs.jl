@@ -32,3 +32,11 @@ violation_loss only minizes the upper bound of the output neurons that are > 0 (
 function violation_loss(l, u)
     return sum(max.(0., u))
 end
+
+
+"""
+upper_bound_loss only minimizes the upper bound of the output neurons.
+"""
+function upper_bound_loss(l, u)
+    return sum(u)
+end
