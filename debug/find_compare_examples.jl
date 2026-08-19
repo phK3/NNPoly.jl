@@ -142,7 +142,7 @@ end
 
 # Lower score is nicer: small integer values and small-denominator rationals score best.
 # This is only a human-readability heuristic, not a mathematical guarantee.
-function nice_bound_score(x; max_den=8, tol=1e-3)
+function nice_bound_score(x::N; max_den=8, tol=1e-3) where N<:Number
     # Small integers are preferred.
     r = round(x)
     if abs(x - r) <= tol
@@ -159,8 +159,24 @@ function nice_bound_score(x; max_den=8, tol=1e-3)
     return (3, abs(x), 10_000)
 end
 
-function sort_by_nice_bounds(candidates; max_den=8)
-    sort!(candidates, by=c -> nice_bound_score(c.ub_pcrown_opt; max_den=max_den))
+function nice_bound_score(c::NamedTuple; max_den=8, tol=1e-3)
+    bounds = [
+        c.ub_dpnfv_0,
+        c.ub_dpnfv_10,
+        c.ub_acrown_0,
+        c.ub_pcrown_0,
+    ]
+    scores = [nice_bound_score(bound; max_den=max_den, tol=tol) for bound in bounds]
+
+    return (
+        sum(score[1] for score in scores),
+        sum(score[2] for score in scores),
+        sum(score[3] for score in scores),
+    )
+end
+
+function sort_by_nice_bounds(candidates; max_den=8, tol=1e-3)
+    sort!(candidates, by=c -> nice_bound_score(c; max_den=max_den, tol=tol))
     return candidates
 end
 
@@ -197,7 +213,7 @@ function print_candidate_summary(c; idx=nothing, n_steps=25)
     println("aCROWN(n_steps=$(n_steps)) upper = ", c.ub_acrown_opt)
     println("PolyCROWN(n_steps=$(n_steps)) upper = ", c.ub_pcrown_opt)
     println("PolyCROWN improvement from n_steps=0 to n_steps=$(n_steps) = ", c.ub_pcrown_0 - c.ub_pcrown_opt)
-    println("nice output score = ", nice_bound_score(c.ub_pcrown_opt))
+    println("nice output score = ", nice_bound_score(c))
     println("-" ^ 72)
 end
 
@@ -253,7 +269,7 @@ function get_bounding_functions(solver::NP.PolyCROWN, net, lbs, ubs, input_set)
     return f_lower, f_upper
 end
 
-function plot_candidate(c)
+function plot_candidate(c; plot_lower=false, loss_fun=NP.upper_bound_loss)
     l, u = -1., 1.
     max_vars = 10
 
@@ -267,51 +283,77 @@ function plot_candidate(c)
 
     pCROWN = NP.PolyCROWN(NP.DiffNNPolySym(common_generators=true), poly_layers=1, prune_neurons=false)
     params_poly = NP.OptimisationParams(n_steps=1000, print_freq=100, start_lr=0.1, decay=0.98, patience=1000)
-    t = @elapsed res, lbs_pcrown, ubs_pcrown = NP.optimise_bounds(pCROWN, net_pcrown, input_set, params=params_poly, loss_fun=NP.violation_loss, print_results=true)
+    t = @elapsed res, lbs_pcrown, ubs_pcrown = NP.optimise_bounds(pCROWN, net_pcrown, input_set, params=params_poly, loss_fun=loss_fun, print_results=true)
     f_pcrown_lower, f_pcrown_upper = get_bounding_functions(pCROWN, net_pcrown, lbs_pcrown, ubs_pcrown, input_set)
 
     aCROWN = NP.aCROWN()
     params = NP.OptimisationParams(n_steps=1000, print_freq=100, start_lr=0.1, decay=0.98, patience=1000)
-    t = @elapsed res, lbs_acrown, ubs_acrown = NP.optimise_bounds(aCROWN, net_acrown, input_set, params=params, loss_fun=NP.violation_loss)
+    t = @elapsed res, lbs_acrown, ubs_acrown = NP.optimise_bounds(aCROWN, net_acrown, input_set, params=params, loss_fun=loss_fun)
     f_acrown_lower, f_acrown_upper = get_bounding_functions(aCROWN, net_acrown, lbs_acrown, ubs_acrown, input_set)
 
     xs = range(l, u; length=200)
     y_nn = net_acrown(reshape(xs, 1, :)) |> vec
 
-    plot(xs, y_nn, label="NN output")
+    pl = plot(xs, y_nn, label="NN output")
     plot!(xs, f_dpnfv_upper.(xs), label="DPNFV upper bound")
     plot!(xs, f_acrown_upper.(xs), label="aCROWN upper bound")
     plot!(xs, f_pcrown_upper.(xs), label="pCROWN upper bound")
 
-    plot!(xs, f_dpnfv_lower.(xs), label="DPNFV lower bound")
-    plot!(xs, f_acrown_lower.(xs), label="aCROWN lower bound")
-    plot!(xs, f_pcrown_lower.(xs), label="pCROWN lower bound")
+    if plot_lower
+        plot!(xs, f_dpnfv_lower.(xs), label="DPNFV lower bound")
+        plot!(xs, f_acrown_lower.(xs), label="aCROWN lower bound")
+        plot!(xs, f_pcrown_lower.(xs), label="pCROWN lower bound")
+    end
+
+    pl 
 end
 
-function plot_saved_candidate(idx)
+function plot_saved_candidate(idx; plot_lower=false)
     if idx == 1
+        # might be ok
         c = (Ws = [[-2.0; -1.0;;], [0.5 0.5; 1.0 -2.0], [-1.0 1.0]], 
             bs = [[0.5, 0.5], [1.0, 0.0], [1.0]], 
             ub_dpnfv_0 = 0.40625, ub_dpnfv_10 = -0.0625, 
             ub_acrown_0 = 0.40000000000000013, ub_pcrown_0 = 0.3055555555555556,
             ub_acrown_opt = 0.40000000000000013, ub_pcrown_opt = 0.2544843302973525)
     elseif idx == 2
+        # don't use that
         c = (Ws = [[-2.0; -0.5;;], [2.0 2.0; 1.0 2.0], [-1.0 2.0]], 
             bs = [[0.5, -0.5], [-0.5, 0.5], [-0.5]], 
             ub_dpnfv_0 = 4.121875, ub_dpnfv_10 = 2.5545454545454542, 
             ub_acrown_0 = 3.0, ub_pcrown_0 = 2.0000000000000004, 
             ub_acrown_opt = 3.0, ub_pcrown_opt = 1.0)
     elseif idx == 3
+        # don't use that
         c = (Ws = [[2.0; 0.5;;], [-2.0 -0.5; -1.0 -2.0], [0.5 -0.5]], 
             bs = [[0.5, -0.5], [-0.5, 0.5], [-0.5]], 
             ub_dpnfv_0 = 0.1375, ub_dpnfv_10 = -0.0818181818181819, 
             ub_acrown_0 = 0.75, ub_pcrown_0 = 0.25, 
             ub_acrown_opt = 0.1262191868126451, ub_pcrown_opt = -0.5)
+    elseif idx == 4
+        c = (Ws = [[-2.0; -2.0;;], [0.5 -1.0; 2.0 0.5], [-2.0 -2.0]], 
+            bs = [[0.5, 0.5], [1.0, 1.0], [-0.5]], 
+            ub_dpnfv_0 = 1.1581249999999996, ub_dpnfv_10 = 1.1248470279720282, 
+            ub_acrown_0 = 3.0, ub_pcrown_0 = 0.125, 
+            ub_acrown_opt = -3.561336447698669, ub_pcrown_opt = -4.192802795967198)
+    elseif idx == 5
+        c = (Ws = [[-1.0; -2.0;;], [0.5 -0.5; -1.0 -2.0], [-2.0 2.0]], 
+            bs = [[0.5, 0.5], [1.0, 0.5], [0.5]], 
+            ub_dpnfv_0 = 4.375, ub_dpnfv_10 = 3.4375,
+            ub_acrown_0 = 5.5, ub_pcrown_0 = 3.9999999999999996, 
+            ub_acrown_opt = -0.0028714336221752623, ub_pcrown_opt = -0.2598704991645755)
+    elseif idx == 6
+        # why is aCROWN better than pCROWN here?
+        c = (Ws = [[1.0; 2.0;;], [1.0 -2.0; -1.0 1.0], [-1.0 -2.0]], 
+            bs = [[1.0, 0.5], [0.5, 0.5], [-0.5]], 
+            ub_dpnfv_0 = -0.09895833333333337, ub_dpnfv_10 = -0.28246934225195097, 
+            ub_acrown_0 = 2.0, ub_pcrown_0 = 0.5, 
+            ub_acrown_opt = -0.5216754907413461, ub_pcrown_opt = -0.6583304411855313)
     else 
         error("No saved candidate for index $idx")
     end
 
-    plot_candidate(c)
+    plot_candidate(c, plot_lower=plot_lower)
 end
 
 function main(; n_trials=2000, n_steps=25, rng_seed=1, tol=1e-2, max_width=2, max_den=8)
