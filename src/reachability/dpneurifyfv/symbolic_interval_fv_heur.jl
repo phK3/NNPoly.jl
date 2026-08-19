@@ -142,6 +142,11 @@ function minimizer(s::SymbolicIntervalFVHeur)
 end
 
 
+function bounds(s::SymbolicIntervalFVHeur)
+    subs_sym_lo, subs_sym_hi = substitute_variables(s)
+    return lower_bounds(subs_sym_lo, domain(s), s.lbs[end], s.ubs[end]), upper_bounds(subs_sym_hi, domain(s), s.lbs[end], s.ubs[end])
+end
+
 """
 Returns number of crossing ReLUs in the network as well as a list
 of crossing ReLUs per layer.
