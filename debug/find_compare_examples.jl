@@ -224,8 +224,8 @@ function get_output_polys(net, α1, α2, lbs, ubs, solver, input_set)
     s = NP.initialize_symbolic_domain(solver, net[1:1], input_set)
     ŝ, _, _, rs, cs, symmetric_factor, unique_idxs, duplicate_idxs = NP.initialize_params_bounds(solver, net, 2, s)
 
-    println(lbs)
-    println(ubs)
+    #println(lbs)
+    #println(ubs)
     
     # change params to the optimized monomial coefficients
     net[1].α .= α1
@@ -308,7 +308,97 @@ function plot_candidate(c; plot_lower=false, loss_fun=NP.upper_bound_loss)
     pl 
 end
 
-function plot_saved_candidate(idx; plot_lower=false)
+"""
+Plot relaxations for a candidate network and a set of verification algorithms.
+
+args:
+    c - candidate network
+    options - dict of algorithm_name => [param range], where the parameters are max_vars vor DPNFV and the iterations after which the result should be plotted for aCROWN and pCROWN.
+"""
+function plot_candidate(c, options::Dict; plot_lower=false, loss_fun=NP.upper_bound_loss, linewidth=2, no_legend=false, ylims=nothing, framestyle=:axes)
+    l, u = -1., 1. 
+    max_vars = 10 
+
+    net_npi = make_network(c.Ws, c.bs) |> NV.NetworkNegPosIdx
+    net_acrown = make_crown_chain(c.Ws, c.bs; poly=false)
+    net_pcrown = make_crown_chain(c.Ws, c.bs; poly=true)
+
+    input_set = Hyperrectangle(low=[l], high=[u])
+
+    dpnfv_functions = []
+    if "DPNFV" in keys(options)
+        println("=== DPNFV ===")
+        for max_vars in options["DPNFV"]
+            f_dpnfv_lower, f_dpnfv_upper = get_bounding_functions(NP.DPNFV(max_vars=max_vars), net_npi, nothing, nothing, input_set)
+            push!(dpnfv_functions, (max_vars, f_dpnfv_lower, f_dpnfv_upper))
+        end
+    end
+
+    acrown_functions = []
+    if "aCROWN" in keys(options)
+        println("=== aCROWN ===")
+        for n_steps in options["aCROWN"]
+            aCROWN = NP.aCROWN()
+            params = NP.OptimisationParams(n_steps=n_steps, print_freq=100, start_lr=0.1, decay=0.98, patience=1000)
+            t = @elapsed res, lbs_acrown, ubs_acrown = NP.optimise_bounds(aCROWN, net_acrown, input_set, params=params, loss_fun=loss_fun)
+            f_acrown_lower, f_acrown_upper = get_bounding_functions(aCROWN, net_acrown, lbs_acrown, ubs_acrown, input_set)
+            push!(acrown_functions, (n_steps, f_acrown_lower, f_acrown_upper))
+
+            println("lbs: ", lbs_acrown[end])
+            println("ubs: ", ubs_acrown[end])
+        end
+    end
+
+    pcrown_functions = []
+    if "pCROWN" in keys(options)
+        println("=== pCROWN ===")
+        for n_steps in options["pCROWN"]
+            pCROWN = NP.PolyCROWN(NP.DiffNNPolySym(common_generators=true), poly_layers=1, prune_neurons=false)
+            params_poly = NP.OptimisationParams(n_steps=n_steps, print_freq=100, start_lr=0.1, decay=0.98, patience=1000)
+            t = @elapsed res, lbs_pcrown, ubs_pcrown = NP.optimise_bounds(pCROWN, net_pcrown, input_set, params=params_poly, loss_fun=loss_fun)
+            f_pcrown_lower, f_pcrown_upper = get_bounding_functions(pCROWN, net_pcrown, lbs_pcrown, ubs_pcrown, input_set)
+            push!(pcrown_functions, (n_steps, f_pcrown_lower, f_pcrown_upper))
+
+            println("lbs: ", lbs_pcrown[end])
+            println("ubs: ", ubs_pcrown[end])
+        end
+    end
+
+
+    xs = range(l, u; length=200)
+    y_nn = net_acrown(reshape(xs, 1, :)) |> vec
+    if no_legend
+        pl = plot(xs, y_nn, label="NN output", color=1, linewidth=linewidth, legend=false, framestyle=framestyle, xlabel="x", ylabel="y")
+    else 
+        pl = plot(xs, y_nn, label="NN output", color=1, linewidth=linewidth, framestyle=framestyle, xlabel="x", ylabel="y")
+    end
+
+    if !isnothing(ylims)
+        ylims!(ylims)
+    end
+
+    alg_dict = Dict("DPNFV" => dpnfv_functions, "aCROWN" => acrown_functions, "pCROWN" => pcrown_functions)
+
+    for (i, algo) in enumerate(keys(alg_dict))
+        len_params = length(alg_dict[algo])
+        for (j, (n, fl, fu)) in enumerate(alg_dict[algo])
+            param_str = algo == "DPNFV" ? "$n vars" : "$n steps"
+
+            # alpha = i / len_params
+            # s.t. last setting is solid, earlier settings are more transparent
+            if plot_lower
+                plot!(xs, fl.(xs), label=nothing, color=i+1, alpha=j / len_params, linewidth=linewidth)
+            end
+
+            plot!(xs, fu.(xs), label="$(algo) bound ($(param_str))", color=i+1, alpha=j / len_params, linewidth=linewidth)
+        end
+    end
+
+    pl    
+end
+
+
+function get_saved_candidate(idx)
     if idx == 1
         # might be ok
         c = (Ws = [[-2.0; -1.0;;], [0.5 0.5; 1.0 -2.0], [-1.0 1.0]], 
@@ -351,21 +441,76 @@ function plot_saved_candidate(idx; plot_lower=false)
             ub_acrown_opt = -0.5216754907413461, ub_pcrown_opt = -0.6583304411855313)
     elseif idx == 7
         # good
-        c = (Ws = [[-2.0; -2.0;;], [0.5 -1.0; 2.0 0.5], [-2.0 -2.0]], bs = [[0.5, 0.5], [1.0, 1.0], [-0.5]], ub_dpnfv_0 = 1.1581249999999996, ub_dpnfv_10 = 1.1248470279720282, ub_acrown_0 = 3.0, ub_pcrown_0 = 0.125, ub_acrown_opt = -3.561336447698669, ub_pcrown_opt = -4.192802795967198)
+        c = (Ws = [[-2.0; -2.0;;], [0.5 -1.0; 2.0 0.5], [-2.0 -2.0]], 
+            bs = [[0.5, 0.5], [1.0, 1.0], [-0.5]], 
+            ub_dpnfv_0 = 1.1581249999999996, ub_dpnfv_10 = 1.1248470279720282, 
+            ub_acrown_0 = 3.0, ub_pcrown_0 = 0.125, 
+            ub_acrown_opt = -3.561336447698669, ub_pcrown_opt = -4.192802795967198)
     elseif idx == 8
         # good
-        c = (Ws = [[-1.0; -2.0;;], [0.5 -0.5; -1.0 -2.0], [-2.0 2.0]], bs = [[0.5, 0.5], [1.0, 0.5], [0.5]], ub_dpnfv_0 = 4.375, ub_dpnfv_10 = 3.4375,ub_acrown_0 = 5.5, ub_pcrown_0 = 3.9999999999999996, ub_acrown_opt = -0.0028714336221752623, ub_pcrown_opt = -0.2598704991645755)
+        c = (Ws = [[-1.0; -2.0;;], [0.5 -0.5; -1.0 -2.0], [-2.0 2.0]], 
+            bs = [[0.5, 0.5], [1.0, 0.5], [0.5]], 
+            ub_dpnfv_0 = 4.375, ub_dpnfv_10 = 3.4375,
+            ub_acrown_0 = 5.5, ub_pcrown_0 = 3.9999999999999996, 
+            ub_acrown_opt = -0.0028714336221752623, ub_pcrown_opt = -0.2598704991645755)
     elseif idx == 9
         # good
-        c = (Ws = [[-2.0; -2.0;;], [1.0 -2.0; 2.0 -1.0], [1.0 -2.0]], bs = [[1.0, 0.5], [-0.5, 0.5], [0.0]], ub_dpnfv_0 = 2.803571428571429, ub_dpnfv_10 = 2.6000000000000005, ub_acrown_0 = 3.5, ub_pcrown_0 = 3.3333333333333326, ub_acrown_opt = 0.22183746387244208, ub_pcrown_opt = -0.761333617902771)
+        c = (Ws = [[-2.0; -2.0;;], [1.0 -2.0; 2.0 -1.0], [1.0 -2.0]], 
+            bs = [[1.0, 0.5], [-0.5, 0.5], [0.0]], 
+            ub_dpnfv_0 = 2.803571428571429, ub_dpnfv_10 = 2.6000000000000005, 
+            ub_acrown_0 = 3.5, ub_pcrown_0 = 3.3333333333333326, 
+            ub_acrown_opt = 0.22183746387244208, ub_pcrown_opt = -0.761333617902771)
     elseif idx == 10
         # good
-        c = (Ws = [[2.0; 1.0;;], [0.5 -1.0; -1.0 -1.0], [0.5 2.0]], bs = [[0.5, 0.0], [0.5, -1.0], [0.5]], ub_dpnfv_0 = 1.875, ub_dpnfv_10 = 1.6901408450704227, ub_acrown_0 = 1.575, ub_pcrown_0 = 1.375, ub_acrown_opt = 1.0739141365660774, ub_pcrown_opt = 0.9176197226814151)
+        c = (Ws = [[2.0; 1.0;;], [0.5 -1.0; -1.0 -1.0], [0.5 2.0]], 
+            bs = [[0.5, 0.0], [0.5, -1.0], [0.5]], 
+            ub_dpnfv_0 = 1.875, ub_dpnfv_10 = 1.6901408450704227, 
+            ub_acrown_0 = 1.575, ub_pcrown_0 = 1.375, 
+            ub_acrown_opt = 1.0739141365660774, ub_pcrown_opt = 0.9176197226814151)
+    elseif idx == 11
+        # VERY GOOD CANDIDATE FOR DISSERTATION EXAMPLE
+        c = (Ws = [[-1.0; -2.0;;], [0.5 -0.5; -1.0 -2.0], [-2.0 2.0]], 
+            bs = [[0.5, 0.5], [1.0, 0.5], [1.5]], 
+            ub_dpnfv_0 = 4.375, ub_dpnfv_10 = 3.4375,
+            ub_acrown_0 = 5.5, ub_pcrown_0 = 3.9999999999999996, 
+            ub_acrown_opt = -0.0028714336221752623, ub_pcrown_opt = -0.2598704991645755)
+    elseif idx == 12
+        # CANDIDATE WITH SLIGHTLY EASIER NUMBERS THAN 11
+        c = (Ws = [[-1.0; -2.0;;], [1. -1; -2.0 -4.0], [-1.0 1.0]], 
+            bs = [[0.5, 0.5], [2.0, 1.], [1.5]], 
+            ub_dpnfv_0 = 4.375, ub_dpnfv_10 = 3.4375,
+            ub_acrown_0 = 5.5, ub_pcrown_0 = 3.9999999999999996, 
+            ub_acrown_opt = -0.0028714336221752623, ub_pcrown_opt = -0.2598704991645755)
+    elseif idx == 13
+        c = (Ws = [[1.0; 2.0;;], [-1. 1; 2.0 4.0], [1.0 -1.0]], 
+            bs = [[-0.5, -0.5], [2.0, 1.], [1.5]], 
+            ub_dpnfv_0 = 4.375, ub_dpnfv_10 = 3.4375,
+            ub_acrown_0 = 5.5, ub_pcrown_0 = 3.9999999999999996, 
+            ub_acrown_opt = -0.0028714336221752623, ub_pcrown_opt = -0.2598704991645755)
     else 
         error("No saved candidate for index $idx")
     end
 
-    plot_candidate(c, plot_lower=plot_lower)
+    return c
+end
+
+function plot_saved_candidate(idx, options; plot_lower=false, no_legend=false, ylims=nothing)
+    c = get_saved_candidate(idx)
+    plot_candidate(c, options, plot_lower=plot_lower, no_legend=no_legend, ylims=ylims)  
+end
+
+function plot_saved_candidate(idx; plot_lower=false, no_legend=false)
+    c = get_saved_candidate(idx)
+    plot_candidate(c, plot_lower=plot_lower, no_legend=no_legend)
+end
+
+function gif_saved_candidate(idx, solver_name, param_range, gif_filename; plot_lower=false, no_legend=false, fps=15, ylims=nothing)
+    anim = @animate for p in param_range
+        options = Dict(solver_name => [p])
+        plot_saved_candidate(idx, options, plot_lower=plot_lower, no_legend=no_legend, ylims=ylims)
+    end
+
+    gif(anim, gif_filename, fps=fps)
 end
 
 function main(; n_trials=2000, n_steps=25, rng_seed=1, tol=1e-2, max_width=2, max_den=8)
