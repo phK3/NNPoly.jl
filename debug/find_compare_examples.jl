@@ -349,6 +349,18 @@ function plot_saved_candidate(idx; plot_lower=false)
             ub_dpnfv_0 = -0.09895833333333337, ub_dpnfv_10 = -0.28246934225195097, 
             ub_acrown_0 = 2.0, ub_pcrown_0 = 0.5, 
             ub_acrown_opt = -0.5216754907413461, ub_pcrown_opt = -0.6583304411855313)
+    elseif idx == 7
+        # good
+        c = (Ws = [[-2.0; -2.0;;], [0.5 -1.0; 2.0 0.5], [-2.0 -2.0]], bs = [[0.5, 0.5], [1.0, 1.0], [-0.5]], ub_dpnfv_0 = 1.1581249999999996, ub_dpnfv_10 = 1.1248470279720282, ub_acrown_0 = 3.0, ub_pcrown_0 = 0.125, ub_acrown_opt = -3.561336447698669, ub_pcrown_opt = -4.192802795967198)
+    elseif idx == 8
+        # good
+        c = (Ws = [[-1.0; -2.0;;], [0.5 -0.5; -1.0 -2.0], [-2.0 2.0]], bs = [[0.5, 0.5], [1.0, 0.5], [0.5]], ub_dpnfv_0 = 4.375, ub_dpnfv_10 = 3.4375,ub_acrown_0 = 5.5, ub_pcrown_0 = 3.9999999999999996, ub_acrown_opt = -0.0028714336221752623, ub_pcrown_opt = -0.2598704991645755)
+    elseif idx == 9
+        # good
+        c = (Ws = [[-2.0; -2.0;;], [1.0 -2.0; 2.0 -1.0], [1.0 -2.0]], bs = [[1.0, 0.5], [-0.5, 0.5], [0.0]], ub_dpnfv_0 = 2.803571428571429, ub_dpnfv_10 = 2.6000000000000005, ub_acrown_0 = 3.5, ub_pcrown_0 = 3.3333333333333326, ub_acrown_opt = 0.22183746387244208, ub_pcrown_opt = -0.761333617902771)
+    elseif idx == 10
+        # good
+        c = (Ws = [[2.0; 1.0;;], [0.5 -1.0; -1.0 -1.0], [0.5 2.0]], bs = [[0.5, 0.0], [0.5, -1.0], [0.5]], ub_dpnfv_0 = 1.875, ub_dpnfv_10 = 1.6901408450704227, ub_acrown_0 = 1.575, ub_pcrown_0 = 1.375, ub_acrown_opt = 1.0739141365660774, ub_pcrown_opt = 0.9176197226814151)
     else 
         error("No saved candidate for index $idx")
     end
