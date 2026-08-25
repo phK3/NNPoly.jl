@@ -43,6 +43,11 @@ function last_upper_bound(bounds_vec)
     return Float64(bounds_vec[end][1])
 end
 
+function box_upper_bound(net, input_set)
+    ŝ = NV.forward_network(NV.Box(), net, input_set)
+    return high(ŝ)[1]
+end
+
 function dpnfv_upper_bound(net_npi, input_set; max_vars)
     s = NP.init_symbolic_interval_fvheur(net_npi, input_set, max_vars=max_vars)
     ŝ = NV.forward_network(NP.DPNFV(max_vars=max_vars), net_npi, s)
@@ -106,6 +111,8 @@ function evaluate_candidate(Ws, bs; n_steps=10)
     net_npi = NV.NetworkNegPosIdx(net)
     input_set = Hyperrectangle(low=[-1.0], high=[1.0])
 
+    ub_box = box_upper_bound(net, input_set)
+
     ub_dpnfv_0 = dpnfv_upper_bound(net_npi, input_set; max_vars=0)
     ub_dpnfv_10 = dpnfv_upper_bound(net_npi, input_set; max_vars=10)
 
@@ -120,6 +127,7 @@ function evaluate_candidate(Ws, bs; n_steps=10)
     return (
         Ws = Ws,
         bs = bs,
+        ub_box = ub_box,
         ub_dpnfv_0 = ub_dpnfv_0,
         ub_dpnfv_10 = ub_dpnfv_10,
         ub_acrown_0 = ub_acrown_0,
@@ -133,16 +141,17 @@ function candidate_matches(metrics; tol=1e-2)
     # Require a clear, non-negligible gain to avoid accepting cases that only
     # differ by floating-point noise. The comparisons are all on upper bounds,
     # so we want the "better" method to be visibly tighter than the baseline.
+    box_gt_dpn = metrics.ub_box > metrics.ub_dpnfv_0 + tol
     dpn = metrics.ub_dpnfv_0 > metrics.ub_dpnfv_10 + tol
     poly_gt_acrown = metrics.ub_pcrown_0 < metrics.ub_acrown_0 - tol
     poly_gt_acrown_opt = metrics.ub_pcrown_opt < metrics.ub_acrown_opt - tol
     poly_improved_by_opt = metrics.ub_pcrown_opt < metrics.ub_pcrown_0 - tol
-    return dpn && poly_gt_acrown && poly_gt_acrown_opt && poly_improved_by_opt
+    return box_gt_dpn && dpn && poly_gt_acrown && poly_gt_acrown_opt && poly_improved_by_opt
 end
 
 # Lower score is nicer: small integer values and small-denominator rationals score best.
 # This is only a human-readability heuristic, not a mathematical guarantee.
-function nice_bound_score(x::N; max_den=8, tol=1e-3) where N<:Number
+function nice_bound_score(x::N; max_den=15, tol=1e-5) where N<:Number
     # Small integers are preferred.
     r = round(x)
     if abs(x - r) <= tol
@@ -159,7 +168,7 @@ function nice_bound_score(x::N; max_den=8, tol=1e-3) where N<:Number
     return (3, abs(x), 10_000)
 end
 
-function nice_bound_score(c::NamedTuple; max_den=8, tol=1e-3)
+function nice_bound_score(c::NamedTuple; max_den=15, tol=1e-5)
     bounds = [
         c.ub_dpnfv_0,
         c.ub_dpnfv_10,
@@ -206,6 +215,7 @@ function print_candidate_summary(c; idx=nothing, n_steps=25)
     println("b2 = ", c.bs[2])
     println("W3 = ", c.Ws[3])
     println("b3 = ", c.bs[3])
+    println("Box upper = ", c.ub_box)
     println("DPNFV(max_vars=0) upper = ", c.ub_dpnfv_0)
     println("DPNFV(max_vars=10) upper = ", c.ub_dpnfv_10)
     println("aCROWN(n_steps=0) upper = ", c.ub_acrown_0)
@@ -315,57 +325,70 @@ args:
     c - candidate network
     options - dict of algorithm_name => [param range], where the parameters are max_vars vor DPNFV and the iterations after which the result should be plotted for aCROWN and pCROWN.
 """
-function plot_candidate(c, options::Dict; plot_lower=false, loss_fun=NP.upper_bound_loss, linewidth=2, no_legend=false, ylims=nothing, framestyle=:axes)
-    l, u = -1., 1. 
-    max_vars = 10 
-
+function plot_candidate(c, options::Dict; plot_lower=false, loss_fun=NP.upper_bound_loss, linewidth=2, no_legend=false, ylims=nothing, framestyle=:axes, input_bounds=[(-1, 1)], alpha_decay=true)
     net_npi = make_network(c.Ws, c.bs) |> NV.NetworkNegPosIdx
     net_acrown = make_crown_chain(c.Ws, c.bs; poly=false)
     net_pcrown = make_crown_chain(c.Ws, c.bs; poly=true)
 
-    input_set = Hyperrectangle(low=[l], high=[u])
+    println("Ws: ", c.Ws)
+    println("bs: ", c.bs)
+    println("l1: ", net_acrown.layers[1].weights)
+    println("l2: ", net_acrown.layers[2].weights)
+    println("l3: ", net_acrown.layers[3].weights)
 
     dpnfv_functions = []
-    if "DPNFV" in keys(options)
-        println("=== DPNFV ===")
-        for max_vars in options["DPNFV"]
-            f_dpnfv_lower, f_dpnfv_upper = get_bounding_functions(NP.DPNFV(max_vars=max_vars), net_npi, nothing, nothing, input_set)
-            push!(dpnfv_functions, (max_vars, f_dpnfv_lower, f_dpnfv_upper))
-        end
-    end
-
     acrown_functions = []
-    if "aCROWN" in keys(options)
-        println("=== aCROWN ===")
-        for n_steps in options["aCROWN"]
-            aCROWN = NP.aCROWN()
-            params = NP.OptimisationParams(n_steps=n_steps, print_freq=100, start_lr=0.1, decay=0.98, patience=1000)
-            t = @elapsed res, lbs_acrown, ubs_acrown = NP.optimise_bounds(aCROWN, net_acrown, input_set, params=params, loss_fun=loss_fun)
-            f_acrown_lower, f_acrown_upper = get_bounding_functions(aCROWN, net_acrown, lbs_acrown, ubs_acrown, input_set)
-            push!(acrown_functions, (n_steps, f_acrown_lower, f_acrown_upper))
-
-            println("lbs: ", lbs_acrown[end])
-            println("ubs: ", ubs_acrown[end])
-        end
-    end
-
     pcrown_functions = []
-    if "pCROWN" in keys(options)
-        println("=== pCROWN ===")
-        for n_steps in options["pCROWN"]
-            pCROWN = NP.PolyCROWN(NP.DiffNNPolySym(common_generators=true), poly_layers=1, prune_neurons=false)
-            params_poly = NP.OptimisationParams(n_steps=n_steps, print_freq=100, start_lr=0.1, decay=0.98, patience=1000)
-            t = @elapsed res, lbs_pcrown, ubs_pcrown = NP.optimise_bounds(pCROWN, net_pcrown, input_set, params=params_poly, loss_fun=loss_fun)
-            f_pcrown_lower, f_pcrown_upper = get_bounding_functions(pCROWN, net_pcrown, lbs_pcrown, ubs_pcrown, input_set)
-            push!(pcrown_functions, (n_steps, f_pcrown_lower, f_pcrown_upper))
 
-            println("lbs: ", lbs_pcrown[end])
-            println("ubs: ", ubs_pcrown[end])
+    for (l, u) in input_bounds
+        input_set = Hyperrectangle(low=[l], high=[u])
+
+        if "DPNFV" in keys(options)
+            println("=== DPNFV ===")
+            for max_vars in options["DPNFV"]
+                f_dpnfv_lower, f_dpnfv_upper = get_bounding_functions(NP.DPNFV(max_vars=max_vars), net_npi, nothing, nothing, input_set)
+                push!(dpnfv_functions, (max_vars, f_dpnfv_lower, f_dpnfv_upper, l, u))
+            end
+        end
+
+        if "aCROWN" in keys(options)
+            println("=== aCROWN ===")
+            for n_steps in options["aCROWN"]["n_steps"]
+                aCROWN = NP.aCROWN()
+                params = NP.OptimisationParams(n_steps=n_steps, print_freq=100, start_lr=0.1, decay=0.98, patience=1000)
+                t = @elapsed res, lbs_acrown, ubs_acrown = NP.optimise_bounds(aCROWN, net_acrown, input_set, params=params, loss_fun=loss_fun)
+                f_acrown_lower, f_acrown_upper = get_bounding_functions(aCROWN, net_acrown, lbs_acrown, ubs_acrown, input_set)
+                push!(acrown_functions, (n_steps, f_acrown_lower, f_acrown_upper, l, u))
+
+                println("lbs: ", lbs_acrown[end])
+                println("ubs: ", ubs_acrown[end])
+            end
+        end
+
+        if "pCROWN" in keys(options)
+            println("=== pCROWN ===")
+            for n_steps in options["pCROWN"]["n_steps"]
+                if haskey(options["pCROWN"], "start_lr")
+                    start_lr = options["pCROWN"]["start_lr"]
+                else 
+                    start_lr = 0.1
+                end
+                pCROWN = NP.PolyCROWN(NP.DiffNNPolySym(common_generators=true), poly_layers=1, prune_neurons=false)
+                params_poly = NP.OptimisationParams(n_steps=n_steps, print_freq=100, start_lr=start_lr, decay=0.98, patience=1000)
+                t = @elapsed res, lbs_pcrown, ubs_pcrown = NP.optimise_bounds(pCROWN, net_pcrown, input_set, params=params_poly, loss_fun=loss_fun)
+                f_pcrown_lower, f_pcrown_upper = get_bounding_functions(pCROWN, net_pcrown, lbs_pcrown, ubs_pcrown, input_set)
+                push!(pcrown_functions, (n_steps, f_pcrown_lower, f_pcrown_upper, l, u))
+
+                println("lbs: ", lbs_pcrown[end])
+                println("ubs: ", ubs_pcrown[end])
+            end
         end
     end
 
-
+    l = minimum(first.(input_bounds))
+    u = maximum(last.(input_bounds))
     xs = range(l, u; length=200)
+
     y_nn = net_acrown(reshape(xs, 1, :)) |> vec
     if no_legend
         pl = plot(xs, y_nn, label="NN output", color=1, linewidth=linewidth, legend=false, framestyle=framestyle, xlabel="x", ylabel="y")
@@ -381,16 +404,19 @@ function plot_candidate(c, options::Dict; plot_lower=false, loss_fun=NP.upper_bo
 
     for (i, algo) in enumerate(keys(alg_dict))
         len_params = length(alg_dict[algo])
-        for (j, (n, fl, fu)) in enumerate(alg_dict[algo])
+        for (j, (n, fl, fu, l, u)) in enumerate(alg_dict[algo])
+            xs_algo = range(l, u, 200)
             param_str = algo == "DPNFV" ? "$n vars" : "$n steps"
+
+            alpha = alpha_decay ? j / len_params : 1.0
 
             # alpha = i / len_params
             # s.t. last setting is solid, earlier settings are more transparent
             if plot_lower
-                plot!(xs, fl.(xs), label=nothing, color=i+1, alpha=j / len_params, linewidth=linewidth)
+                plot!(xs_algo, fl.(xs_algo), label=nothing, color=i+1, alpha=alpha, linewidth=linewidth)
             end
 
-            plot!(xs, fu.(xs), label="$(algo) bound ($(param_str))", color=i+1, alpha=j / len_params, linewidth=linewidth)
+            plot!(xs_algo, fu.(xs_algo), label="$(algo) bound ($(param_str))", color=i+1, alpha=alpha, linewidth=linewidth)
         end
     end
 
@@ -487,6 +513,25 @@ function get_saved_candidate(idx)
             ub_dpnfv_0 = 4.375, ub_dpnfv_10 = 3.4375,
             ub_acrown_0 = 5.5, ub_pcrown_0 = 3.9999999999999996, 
             ub_acrown_opt = -0.0028714336221752623, ub_pcrown_opt = -0.2598704991645755)
+    elseif idx == 14
+        # TODO: Check if PolyCROWN gets worse relaxation with more iterations? --> yes
+        # otherwise: INTERESTING because nice shape of NN function, can also see polynomial curvature in initial bounds
+        # need to run with
+        # plot_saved_candidate(14, Dict("DPNFV" => [0, 10], "aCROWN" => Dict("n_steps" => [0,25]), "pCROWN" => Dict("n_steps" => [0,15])), plot_lower=false)
+        c = (Ws = [[0.5; 2.0;;], [1.0 1.0; 2.0 -2.0], [0.5 2.0]], bs = [[0.5, 0.5], [0.5, 0.5], [-0.5]], ub_box = 6.5, ub_dpnfv_0 = 4.5, ub_dpnfv_10 =4.25, ub_acrown_0 = 6.5, ub_pcrown_0 = 4.5, ub_acrown_opt = 2.857431216156042, ub_pcrown_opt = 2.648743424874088)
+    elseif idx == 15
+        c = (Ws = [[-2.0; -2.0;;], [-1.0 1.0; 2.0 -1.0], [2.0 0.5]], bs = [[0.5, 0.5], [0.0, -1.0], [0.0]], ub_box = 7.0, ub_dpnfv_0 = 3.09375, ub_dpnfv_10 = 2.571428571428571, ub_acrown_0 = 3.0, ub_pcrown_0 = 1.75, ub_acrown_opt = 2.107977325019526, ub_pcrown_opt = 1.3440445109303654)
+    elseif idx == 16
+        c = (Ws = [[0.5; 2.0;;], [-0.5 -1.0; -0.5 1.0], [2.0 1.0]], bs = [[0.0, 0.5], [1.0, 0.0], [0.0]], ub_box = 4.5, ub_dpnfv_0 = 4.25, ub_dpnfv_10= 4.124999999999999, ub_acrown_0 = 5.0, ub_pcrown_0 = 3.9545454545454546, ub_acrown_opt = 2.402085010668625, ub_pcrown_opt = 2.3125092275701986)
+    elseif idx == 17
+        # GOOD, but only small improvement for PolyCROWN
+        c = (Ws = [[2.0; 1.0;;], [1.0 -2.0; 0.5 -0.5], [-2.0 2.0]], bs = [[0.5, 0.0], [0.0, 1.0], [0.5]], ub_box = 5.0, ub_dpnfv_0 = 4.5, ub_dpnfv_10 = 4.1521739130434785, ub_acrown_0 = 4.0, ub_pcrown_0 = 3.25, ub_acrown_opt = 3.490602860186095, ub_pcrown_opt = 3.12620202997393)
+    elseif idx == 18
+        # initial relaxation not interesting
+        c = (Ws = [[-2.0; -2.0;;], [2.0 -1.0; -2.0 1.0], [1.0 0.5]], bs = [[-1.0, 0.5], [1.0, 0.5], [0.5]], ub_box = 5.0, ub_dpnfv_0 = 3.4375, ub_dpnfv_10 = 2.6875, ub_acrown_0 = 3.0, ub_pcrown_0 = 2.0, ub_acrown_opt = 2.261155426359512, ub_pcrown_opt = 1.9006907620128708)
+    elseif idx == 19
+        # GOOD, can see polynomial curvature, also good improvement after optimization
+        c = (Ws = [[-2.0; -2.0;;], [-2.0 1.0; -2.0 1.0], [1.0 -0.5]], bs = [[0.5, 1.0], [1.0, -0.5], [-0.5]], ub_box = 3.5, ub_dpnfv_0 = 2.375, ub_dpnfv_10 = 2.3245967741935485, ub_acrown_0 = 3.5, ub_pcrown_0 = 2.25, ub_acrown_opt = 1.312636476689503, ub_pcrown_opt = 1.0084044912028687)
     else 
         error("No saved candidate for index $idx")
     end
@@ -494,9 +539,9 @@ function get_saved_candidate(idx)
     return c
 end
 
-function plot_saved_candidate(idx, options; plot_lower=false, no_legend=false, ylims=nothing)
+function plot_saved_candidate(idx, options; plot_lower=false, no_legend=false, ylims=nothing, alpha_decay=true, input_bounds=[(-1, 1)])
     c = get_saved_candidate(idx)
-    plot_candidate(c, options, plot_lower=plot_lower, no_legend=no_legend, ylims=ylims)  
+    plot_candidate(c, options, plot_lower=plot_lower, no_legend=no_legend, ylims=ylims, alpha_decay=alpha_decay, input_bounds=input_bounds)  
 end
 
 function plot_saved_candidate(idx; plot_lower=false, no_legend=false)
