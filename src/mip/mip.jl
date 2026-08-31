@@ -146,23 +146,33 @@ function tighten_bounds(solver::MIPEncoder, model, x, lbs, ubs; method=:lp, time
         undo = relax_integrality(model)
     end
 
-    verbosity <= 1 && set_silent(model)
+    verbosity <= 2 && set_silent(model)
 
     lbs_opt = fill(-Inf, size(lbs))
     ubs_opt = fill( Inf, size(ubs))
     set_time_limit_sec(model, timeout)
     # focus on improving bound
     set_attribute(model, "MIPFocus", solver.mip_focus)
+    fixed_inactive = ubs .<= 0
+    fixed_active   = lbs .>= 0
+    crossing       = trues(length(lbs)) .⊻ fixed_active .⊻ fixed_inactive
     for (i, xᵢ) in enumerate(x)
+        verbosity >= 2 && println("current bounds: ", [lbs[i], ubs[i]])
+        
+        if crossing[i] && (lbs[i] < bnd_stop_lb)
         set_attribute(model, "BestBdStop", bnd_stop_lb)
         @objective(model, Min, xᵢ)
         optimize!(model)
         lbs_opt[i] = objective_bound(model)
+        end
 
+        if crossing[i] && (ubs[i] > bnd_stop_ub)
         set_attribute(model, "BestBdStop", bnd_stop_ub)
         @objective(model, Max, xᵢ)
         optimize!(model)
         ubs_opt[i] = objective_bound(model)
+        end
+        verbosity >= 2 && println("\t-->: ", [lbs_opt[i], ubs_opt[i]])
     end
 
     if method == :lp 
