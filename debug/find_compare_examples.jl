@@ -16,6 +16,13 @@ const NV = NeuralVerification
     biases so the resulting network is easy to hand-calculate and explain in a thesis.
 =#
 
+#=
+    ========================================================================================
+    How to run the script with found examples:
+    1. Just select the whole script using Ctrl+A and run it in the Julia REPL, this will load all of the methods
+    2. Call e.g. `plot_saved_candidate(14, Dict("DPNFV" => Dict("max_vars" => [0, 10]), "aCROWN" => Dict("n_steps" => [0,25]), "pCROWN" => Dict("n_steps" => [0,15])), plot_lower=false)`
+=#
+
 function make_network(Ws::Vector{Matrix{Float64}}, bs::Vector{Vector{Float64}}; last_act=NV.Id())
     # last_act kwarg is s.t. we can also check the intermediate outputs after a ReLU layer
     layers = Vector{NV.Layer{<:NV.ActivationFunction, Float64}}()
@@ -439,7 +446,7 @@ function plot_candidate(c, options::Dict; plot_lower=false, loss_fun=NP.upper_bo
 
         if "DPNFV" in keys(options)
             println("=== DPNFV ===")
-            for max_vars in options["DPNFV"]
+            for max_vars in options["DPNFV"]["max_vars"]
                 f_dpnfv_lower, f_dpnfv_upper = get_bounding_functions(NP.DPNFV(max_vars=max_vars), net_npi, nothing, nothing, input_set)
                 push!(dpnfv_functions, (max_vars, f_dpnfv_lower, f_dpnfv_upper, l, u))
             end
@@ -608,10 +615,12 @@ function get_saved_candidate(idx)
             ub_acrown_0 = 5.5, ub_pcrown_0 = 3.9999999999999996, 
             ub_acrown_opt = -0.0028714336221752623, ub_pcrown_opt = -0.2598704991645755)
     elseif idx == 14
-        # TODO: Check if PolyCROWN gets worse relaxation with more iterations? --> yes
+        # ========================== This is our example =============================================================== #
+        # Check if PolyCROWN gets worse relaxation with more iterations? --> yes
         # otherwise: INTERESTING because nice shape of NN function, can also see polynomial curvature in initial bounds
         # need to run with
-        # plot_saved_candidate(14, Dict("DPNFV" => [0, 10], "aCROWN" => Dict("n_steps" => [0,25]), "pCROWN" => Dict("n_steps" => [0,15])), plot_lower=false)
+        # plot_saved_candidate(14, Dict("DPNFV" => Dict("max_vars" => [0, 10]), "aCROWN" => Dict("n_steps" => [0,25]), "pCROWN" => Dict("n_steps" => [0,15])), plot_lower=false)
+        # =============================================================================================================== #
         c = (Ws = [[0.5; 2.0;;], [1.0 1.0; 2.0 -2.0], [0.5 2.0]], bs = [[0.5, 0.5], [0.5, 0.5], [-0.5]], ub_box = 6.5, ub_dpnfv_0 = 4.5, ub_dpnfv_10 =4.25, ub_acrown_0 = 6.5, ub_pcrown_0 = 4.5, ub_acrown_opt = 2.857431216156042, ub_pcrown_opt = 2.648743424874088)
     elseif idx == 15
         c = (Ws = [[-2.0; -2.0;;], [-1.0 1.0; 2.0 -1.0], [2.0 0.5]], bs = [[0.5, 0.5], [0.0, -1.0], [0.0]], ub_box = 7.0, ub_dpnfv_0 = 3.09375, ub_dpnfv_10 = 2.571428571428571, ub_acrown_0 = 3.0, ub_pcrown_0 = 1.75, ub_acrown_opt = 2.107977325019526, ub_pcrown_opt = 1.3440445109303654)
