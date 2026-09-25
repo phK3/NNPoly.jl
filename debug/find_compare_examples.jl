@@ -16,16 +16,17 @@ const NV = NeuralVerification
     biases so the resulting network is easy to hand-calculate and explain in a thesis.
 =#
 
-function make_network(Ws::Vector{Matrix{Float64}}, bs::Vector{Vector{Float64}})
+function make_network(Ws::Vector{Matrix{Float64}}, bs::Vector{Vector{Float64}}; last_act=NV.Id())
+    # last_act kwarg is s.t. we can also check the intermediate outputs after a ReLU layer
     layers = Vector{NV.Layer{<:NV.ActivationFunction, Float64}}()
     for i in 1:length(Ws)-1
         push!(layers, NV.Layer(Ws[i], bs[i], NV.ReLU()))
     end
-    push!(layers, NV.Layer(Ws[end], bs[end], NV.Id()))
+    push!(layers, NV.Layer(Ws[end], bs[end], last_act))
     return NV.Network(layers)
 end
 
-function make_crown_chain(Ws::Vector{Matrix{Float64}}, bs::Vector{Vector{Float64}}; poly=false)
+function make_crown_chain(Ws::Vector{Matrix{Float64}}, bs::Vector{Vector{Float64}}; poly=false, last_act=NV.Id())
     layers = Any[]
     for i in 1:length(Ws)-1
         if i == 1 && poly
@@ -35,7 +36,7 @@ function make_crown_chain(Ws::Vector{Matrix{Float64}}, bs::Vector{Vector{Float64
         end
         push!(layers, NP.CROWNLayer(Ws[i], bs[i], NV.ReLU(), α))
     end
-    push!(layers, NP.CROWNLayer(Ws[end], bs[end], NV.Id(), similar(bs[end], 0)))
+    push!(layers, NP.CROWNLayer(Ws[end], bs[end], last_act, similar(bs[end], 0)))
     return Chain(layers...)
 end
 
@@ -260,6 +261,76 @@ function get_bounding_functions(solver::NP.DPNFV, net, lbs, ubs, input_set)
 
     return f_lower, f_upper
 end
+    
+subscript(i) = join(Char(0x2080 + d) for d in reverse!(digits(i)))
+
+"""
+Prints a linear function of the form y = A*x + b in human readable form.
+"""
+function print_linear_function(A, b; indentation=0)
+    m, n = size(A)
+    for i in 1:m
+        line = "\t"^indentation * "y$(subscript(i)) = "
+        for j in 1:n
+            coeff = A[i,j]
+            if coeff != 0.0
+                line *= "$(coeff)*x$(subscript(j)) + "
+            end
+        end
+        line *= "$(b[i])"
+        println(line)
+    end 
+end
+
+function get_bound_representation(solver::NP.DPNFV, Ws, bs, lbs, ubs, input_set; layer=3, preact=true, printing=true, indentation=0)
+    last_act = preact ? NV.Id() : NV.ReLU()
+    net = make_network(Ws[1:layer], bs[1:layer], last_act=last_act) |> NV.NetworkNegPosIdx
+
+    s = NP.init_symbolic_interval_fvheur(net, input_set, max_vars=solver.max_vars)
+    ŝ = NV.forward_network(solver, net, s)
+    L, U = NP.substitute_variables(ŝ)
+
+    if printing
+        println("Lower bound representation:")
+        print_linear_function(L[:,1:1], L[:,end], indentation=indentation+1)
+        println("Upper bound representation:")
+        print_linear_function(U[:,1:1], U[:,end], indentation=indentation+1)
+    end
+
+    return L, U
+end
+
+function get_bound_representation_net(solver, Ws, bs, lbs, ubs, input_set)
+    n_layers = length(Ws)
+    for i in 1:n_layers
+        println("=== Layer $i ===")
+        println("Pre-activation bounds:")
+        get_bound_representation(solver, Ws, bs, lbs, ubs, input_set; layer=i, preact=true, printing=true)
+        println("Post-activation bounds:")
+        get_bound_representation(solver, Ws, bs, lbs, ubs, input_set; layer=i, preact=false, printing=true)
+        println()
+    end
+end
+
+
+
+function get_bound_representation(solver::NV.Box, Ws, bs, lbs, ubs, input_set; layer=3, preact=true, printing=true, indentation=0)
+    last_act = preact ? NV.Id() : NV.ReLU()
+    net = make_network(Ws[1:layer], bs[1:layer], last_act=last_act)
+
+    ŝ = NV.forward_network(NV.Box(), net, input_set)
+
+    if printing
+        n = length(high(ŝ))
+        println("Lower bound representation:")
+        print_linear_function(zeros(n, 1), low(ŝ), indentation=indentation+1)
+        println("Upper bound representation:")
+        print_linear_function(zeros(n, 1), high(ŝ), indentation=indentation+1)
+    end
+
+    return ŝ
+end
+
 
 function get_bounding_functions(solver::NP.aCROWN, net, lbs, ubs, input_set)
     ŝ = NV.forward_network(solver, net, input_set, lbs, ubs)
@@ -268,6 +339,29 @@ function get_bounding_functions(solver::NP.aCROWN, net, lbs, ubs, input_set)
     f_upper = x -> (ŝ.Γ[1,1] * x + ŝ.γ[1])
 
     return f_lower, f_upper
+end
+
+function get_bound_representation(solver::NP.aCROWN, Ws, bs, lbs, ubs, input_set; layer=3, preact=true, printing=true, loss_fun=NP.upper_bound_loss,
+                                  n_steps=1000, print_freq=100)
+    # TODO: only works for preact=true right now. Is there any way we can get the post-act from aCROWN?
+    # need the full network with the right optimization objective to get the right intermediate bounds
+    net_full = make_crown_chain(Ws, bs; poly=false)
+    params = NP.OptimisationParams(n_steps=n_steps, print_freq=print_freq, start_lr=0.1, decay=0.98, patience=1000)
+    res, lbs_acrown, ubs_acrown = NP.optimise_bounds(solver, net_full, input_set, params=params, loss_fun=loss_fun)
+
+    last_act = preact ? NV.Id() : NV.ReLU()
+    net = make_crown_chain(Ws[1:layer], bs[1:layer]; poly=false, last_act=last_act)
+
+    ŝ = NV.forward_network(solver, net, input_set, lbs_acrown, ubs_acrown)
+
+    if printing
+        println("Lower bound representation:")
+        print_linear_function(ŝ.Λ, ŝ.λ)
+        println("Upper bound representation:")
+        print_linear_function(ŝ.Γ, ŝ.γ)
+    end
+
+    return ŝ
 end
 
 function get_bounding_functions(solver::NP.PolyCROWN, net, lbs, ubs, input_set)
