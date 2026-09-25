@@ -4,6 +4,7 @@
 @with_kw struct DPNFV <: NV.Solver
     # :NeurifyRelax uses lower and upper relaxation of Neurify for Relu
     # :DeepPolyRelax uses 0/1-lower bound gradient of DeepPoly
+    # :OuterBounds uses 0/1-lower bound gradient of DeepPoly, but no *separate* domain for lower and upper relaxation.
     method = :NeurifyRelax
     max_vars = 10
     var_frac = 0.5
