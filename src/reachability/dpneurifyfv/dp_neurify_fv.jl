@@ -4,7 +4,8 @@
 @with_kw struct DPNFV <: NV.Solver
     # :NeurifyRelax uses lower and upper relaxation of Neurify for Relu
     # :DeepPolyRelax uses 0/1-lower bound gradient of DeepPoly
-    # :OuterBounds uses 0/1-lower bound gradient of DeepPoly, but no *separate* domain for lower and upper relaxation.
+    # :OuterBoundsDeepPoly uses 0/1-lower bound gradient of DeepPoly, but no *separate* domain for lower and upper relaxation.
+    # :OuterBoundsNeurify uses lower and upper relaxation of Neurify for Relu, but no *separate* domain for lower and upper relaxation.
     method = :NeurifyRelax
     max_vars = 10
     var_frac = 0.5
@@ -52,7 +53,11 @@ function NV.forward_act(solver::DPNFV, L::NV.LayerNegPosIdx{NV.ReLU}, input::Sym
         n_vars = length(fv_idxs)
     end
 
-    if solver.method == :OuterBounds
+    if solver.method == :OuterBoundsNeurify
+        λ_l = NV.relaxed_relu_gradient.(low_low, up_up)
+        λ_u = NV.relaxed_relu_gradient.(low_low, up_up)
+        β_u = -low_low
+    elseif solver.method == :OuterBoundsDeepPoly
         λ_l = NV.relaxed_relu_gradient_lower.(low_low, up_up)
         λ_u = NV.relaxed_relu_gradient.(low_low, up_up)
         β_u = -low_low
