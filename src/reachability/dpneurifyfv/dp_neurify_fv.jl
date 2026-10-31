@@ -85,10 +85,11 @@ function NV.forward_act(solver::DPNFV, L::NV.LayerNegPosIdx{NV.ReLU}, input::Sym
 
 
     ### introduce new symbolic variables
-    ## TODO: preserve **type** of symbolic interval through zeros(T, n_node, n_vars)
     if n_vars > 0
-        output_Low = [output_Low[:, 1:n_sym] zeros(n_node, n_vars) output_Low[:, end]]
-        output_Up = [output_Up[:, 1:n_sym] zeros(n_node, n_vars) output_Up[:, end]]
+        # preserve the eltype of the symbolic bounds
+        T = eltype(output_Low)
+        output_Low = [output_Low[:, 1:n_sym] zeros(T, n_node, n_vars) output_Low[:, end]]
+        output_Up = [output_Up[:, 1:n_sym] zeros(T, n_node, n_vars) output_Up[:, end]]
     end
 
     for (i, v) in enumerate(fv_idxs)
@@ -97,8 +98,9 @@ function NV.forward_act(solver::DPNFV, L::NV.LayerNegPosIdx{NV.ReLU}, input::Sym
         input.var_his[current_n_vars + i, :] .= subs_Up_Up[v, :]
 
         # set corresponding entry to unit-vec
-        output_Low[v,:] .= unit_vec(n_sym + i, n_sym + 1 + n_vars)
-        output_Up[v,:]  .= unit_vec(n_sym + i, n_sym + 1 + n_vars)
+        T = eltype(output_Low)
+        output_Low[v,:] .= unit_vec(n_sym + i, n_sym + 1 + n_vars, T)
+        output_Up[v,:]  .= unit_vec(n_sym + i, n_sym + 1 + n_vars, T)
     end
 
     output = SymbolicIntervalFVHeur(output_Low, output_Up, input.domain, input.lbs, input.ubs,

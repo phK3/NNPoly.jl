@@ -1,7 +1,7 @@
 
-function unit_vec(i, n)
-    eᵢ = zeros(n)
-    eᵢ[i] = 1.
+function unit_vec(i, n, T=Float64)
+    eᵢ = zeros(T, n)
+    eᵢ[i] = one(T)
     return eᵢ
 end
 
@@ -75,13 +75,13 @@ end
 ### related to ReLU state
 
 
-function is_crossing(lb::Float64, ub::Float64)
+function is_crossing(lb::Real, ub::Real)
     lb < 0 && ub > 0 && return true
     return false
 end
 
 
 function relaxed_relu_gradient_lower(l::Real, u::Real)
-    ((u <= 0) || ((l < 0) && (u <= -l))) && return 0.
-    return 1.
+    ((u <= 0) || ((l < 0) && (u <= -l))) && return zero(u)
+    return one(u)
 end

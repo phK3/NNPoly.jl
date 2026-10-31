@@ -119,16 +119,16 @@ function optimise(f, opt, x₀; params=OptimisationParams())
         elapsed_time = t_now - t_start
         params.save_times && push!(t_hist, elapsed_time)
         if y <= params.y_stop
-            println("Stopping criterion reached! y = ", y, " ≤ ", params.y_stop)
+            params.verbosity > 0 && println("Stopping criterion reached! y = ", y, " ≤ ", params.y_stop)
             break
         elseif grad_norm < params.gradient_tol
-            println("Optimisation converged! ||∇f|| = ", grad_norm, " < ", params.gradient_tol)
+            params.verbosity > 0 && println("Optimisation converged! ||∇f|| = ", grad_norm, " < ", params.gradient_tol)
             break
         elseif steps_no_improvement > params.patience
-            println("No improvement over the last ", params.patience, " iterations. Stopping early.")
+            params.verbosity > 0 && println("No improvement over the last ", params.patience, " iterations. Stopping early.")
             break
         elseif elapsed_time >= params.timeout
-            println("Timeout reached (", elapsed_time, " elapsed)")
+            params.verbosity > 0 && println("Timeout reached (", elapsed_time, " elapsed)")
             break
         end
 
@@ -147,7 +147,7 @@ function optimise(f, opt, x₀; params=OptimisationParams())
         params.save_dist && push!(d_hist, norm(last_x .- x))
 
         if i % params.print_freq == 0
-            println(i, ": ", y, " - ||∇f|| = ", grad_norm)
+            params.verbosity > 0 && println(i, ": ", y, " - ||∇f|| = ", grad_norm)
             params.verbosity > 1 && println("\t ||xᵢ - xᵢ₊₁|| = ", norm(last_x .- x))
             params.verbosity > 1 && params.save_cosine_similarity && println("\t cos-similarity = ", csim)
         end
@@ -198,18 +198,18 @@ function optimise(f, model::Chain, opt; params=OptimisationParams())
         params.save_times && push!(t_hist, elapsed_time)
         params.save_ys && push!(y_hist, y)
         if y <= params.y_stop
-            println(i, ": Stopping criterion reached! y = ", y, " ≤ ", params.y_stop)
+            params.verbosity > 0 && println(i, ": Stopping criterion reached! y = ", y, " ≤ ", params.y_stop)
             break
         elseif steps_no_improvement > params.patience
-            println("No improvement over the last ", params.patience, " iterations. Stopping early.")
+            params.verbosity > 0 && println("No improvement over the last ", params.patience, " iterations. Stopping early.")
             break
         elseif elapsed_time >= params.timeout
-            println("Timeout reached (", elapsed_time, " elapsed)")
+            params.verbosity > 0 && println("Timeout reached (", elapsed_time, " elapsed)")
             break
         end
 
         if i % params.print_freq == 0
-            println(i, ": ", y)
+            params.verbosity > 0 && println(i, ": ", y)
         end
 
         #=

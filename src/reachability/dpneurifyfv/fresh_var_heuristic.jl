@@ -130,7 +130,7 @@ end
 """
 Returns n indices of entries in lbs, ubs with largest range (ubs[i] - lbs[i])
 """
-function fresh_var_largest_range(lbs::Vector{Float64}, ubs::Vector{Float64}, n::Int64)
+function fresh_var_largest_range(lbs::Vector{<:Real}, ubs::Vector{<:Real}, n::Int64)
     n <= 0 && return Int64[]  # early termination, if no variables are introduced
 
     ranges = ubs - lbs
@@ -140,7 +140,7 @@ function fresh_var_largest_range(lbs::Vector{Float64}, ubs::Vector{Float64}, n::
 end
 
 
-function fresh_var_first(lbs::Vector{Float64}, ubs::Vector{Float64}, n::Int64)
+function fresh_var_first(lbs::Vector{<:Real}, ubs::Vector{<:Real}, n::Int64)
     crossing_mask = ((lbs .< 0) .& (ubs .> 0))
     crossing = (1:length(lbs))[crossing_mask]
     return crossing[1:min(length(crossing), n)]
