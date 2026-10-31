@@ -87,6 +87,7 @@ single link failure is an exact tie, plus one niceness offender) can be
 
 ```julia
 ExampleSearch.polish(651; n_iter=20_000, seed=651)
+ExampleSearch.polish(Ws, bs, input_c; n_iter=20_000)   # explicit warm start
 ```
 
 `polish(seed_idx)` runs simulated annealing over the dyadic neighborhood of a
@@ -102,6 +103,30 @@ denominators). Evaluation is staged like `fuzz` (a move is dropped right after
 the early links when its link-failure count already exceeds the current
 corridor of +1). Fully-accepted candidates are saved to the registry as they
 appear; the best solution is saved at the end if it beats the seed.
+
+*Refinement mode* (`soft_den=8, soft_num=64`): once an accepted candidate
+exists, extra below-bar pressure keeps pushing denominators toward 8 and
+numerators toward 64, ranked strictly below the hard bar components. Pass
+`save=false` to avoid duplicate-accepted registry entries while refining.
+*Output-shift sweeps*: changing `b3` by a dyadic `δ` shifts every rung bound by
+exactly `δ` — all link margins are preserved bit-for-bit and denominators never
+grow (p/q → (p+δq)/q). Sweeping δ over a fractional grid is a free prettiness
+optimization (worst numerator of #808: 455 → 435 at δ = +2.5).
+
+## Search outcome (as of 2026-10-31)
+
+Best-known candidates (registry #813/#816, both `:accepted` with all 9 links
+strict and niceness 0/123 violations, `BEST_CANDIDATE.md` has details):
+
+* **#813**, num-optimal: max numerator 76, max denominator 10
+* **#816**, den-optimal: max denominator 7, max numerator 89, all-positive
+  bound ladder
+
+Both are proven vertices of the b3-shift ridges of one network family (SA
+rounds 2–3 converged to them from independent starts; the ridges degrade
+monotonically away from each vertex, measured by exact sweeps over δ).
+The first-ever accepted candidate (#808, num 455 / den 22) remains registered
+as the all-positive classic profile.
 
 ## Notes
 

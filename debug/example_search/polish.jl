@@ -67,11 +67,23 @@ Balanced polish objective (smaller = closer to the target: ladder-perfect AND
 nice, everything hand-checkable). The raw key is
 `(k1, k2, max_den, max_num)` = (failed links, niceness violations, worst
 denominator, worst numerator).
+
+With `soft_den`/`soft_num > 0` (refinement mode) extra *below-bar* pressure is
+added on top: once the hard bar (max_den violations) is met, the objective
+keeps pushing denominators toward `soft_den` and numerators toward `soft_num`,
+without ever outranking the hard components (a violation costs 12, the whole
+below-bar den range is worth ≤ 2; a numerator doubling above 64 costs 0.25).
 """
-function polish_objective(k; max_den=32)
+function polish_objective(k; max_den=32, soft_den=0, soft_num=0, soft_num_w=0.25)
     s = _POLISH_W_LINK * k[1] + _POLISH_W_VIOL * k[2]
     s += k[3] > max_den ? _POLISH_W_DEN * (log(2, k[3]) - log(2, max_den)) : 0.0
     s += k[4] > max_den ? _POLISH_W_NUM * (log(2, k[4]) - log(2, max_den)) : 0.0
+    if soft_den > 0
+        s += k[3] > soft_den ? max(0.0, log(2, k[3]) - log(2, soft_den)) : 0.0
+    end
+    if soft_num > 0
+        s += k[4] > soft_num ? soft_num_w * (log(2, k[4]) - log(2, soft_num)) : 0.0
+    end
     return s
 end
 
@@ -189,6 +201,7 @@ end
 
 function _polish_run(Ws0, bs0, input_c; n_iter=5000, seed=1, tol=1e-2, max_den=32,
                      T0=6.0, Tend=0.1, kick_prob=0.25, patience=1000,
+                     soft_den=0, soft_num=0, soft_num_w=0.25,
                      save=true, progress_cb=nothing, stop_cb=nothing, progress_every=500,
                      seed_idx=nothing)
     rng = MersenneTwister(seed)
@@ -198,7 +211,8 @@ function _polish_run(Ws0, bs0, input_c; n_iter=5000, seed=1, tol=1e-2, max_den=3
     bs0 = [copy(b) for b in bs0]
 
     seed_ev = _polish_eval(Ws0, bs0, input_set; tol=tol, max_den=max_den)
-    seed_obj = polish_objective(seed_ev.key; max_den=max_den)
+    seed_obj = polish_objective(seed_ev.key; max_den=max_den, soft_den=soft_den,
+                                soft_num=soft_num, soft_num_w=soft_num_w)
     cur = (Ws=Ws0, bs=bs0, ev=seed_ev, obj=seed_obj)
     best = cur
     T, cool = T0, (Tend / T0)^(1 / max(n_iter, 1))
@@ -229,7 +243,8 @@ function _polish_run(Ws0, bs0, input_c; n_iter=5000, seed=1, tol=1e-2, max_den=3
             stats[:pruned] += 1
         else
             stats[:evals] += 1
-            obj = polish_objective(ev.key; max_den=max_den)
+            obj = polish_objective(ev.key; max_den=max_den, soft_den=soft_den,
+                                   soft_num=soft_num, soft_num_w=soft_num_w)
             Δ = obj - cur.obj
             if Δ <= 0 || rand(rng) < exp(-Δ / max(T, eps()))
                 cur = (Ws=Ws, bs=bs, ev=ev, obj=obj)

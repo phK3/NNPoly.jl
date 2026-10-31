@@ -1,0 +1,656 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath, amssymb, booktabs}
+\allowdisplaybreaks
+\begin{document}
+
+\section{Network and input set}
+The network $f:\mathbb{R} \to \mathbb{R}$ with two hidden ReLU layers:
+\begin{align*}
+f(x) &= W^{(3)}\,\mathrm{ReLU}\bigl(W^{(2)}\,\mathrm{ReLU}\bigl(W^{(1)}\,x + b^{(1)}\bigr) + b^{(2)}\bigr) + b^{(3)}
+\end{align*}
+with
+\begin{align*}
+W^{(1)} &= \begin{bmatrix}
+\frac{-3}{4} \\
+-7
+\end{bmatrix}, & b^{(1)} &= \bigl(\frac{1}{4},\; 1\bigr),
+\end{align*}
+\begin{align*}
+W^{(2)} &= \begin{bmatrix}
+-24 & \frac{7}{4} \\
+-56 & 7
+\end{bmatrix}, & b^{(2)} &= \bigl(12,\; -8\bigr),
+\end{align*}
+\begin{align*}
+W^{(3)} &= \begin{bmatrix}
+-1 & \frac{3}{4}
+\end{bmatrix}, & b^{(3)} &= \bigl(\frac{-21}{2}\bigr),
+\end{align*}
+and the input set
+\begin{equation*}
+ x \in [\underline{x}, \overline{x}] = [-1,\; 1].
+\end{equation*}
+
+\section{(i) Interval propagation}
+Interval propagation (Box) with $W^{(k)+} = \max(W^{(k)}, 0)$ and
+$W^{(k)-} = \min(W^{(k)}, 0)$, starting from $\underline{h}^{(0)} = \underline{x}$,
+$\overline{h}^{(0)} = \overline{x}$:
+\begin{align*}
+\underline{z}^{(k)} &= W^{(k)+}\, \underline{h}^{(k-1)} + W^{(k)-}\, \overline{h}^{(k-1)} + b^{(k)}, &
+\overline{z}^{(k)} &= W^{(k)+}\, \overline{h}^{(k-1)} + W^{(k)-}\, \underline{h}^{(k-1)} + b^{(k)},
+\underline{h}^{(k)} &= \max(\underline{z}^{(k)}, 0), & \overline{h}^{(k)} &= \max(\overline{z}^{(k)}, 0) \quad (\text{ReLU layers}).
+\end{align*}
+Layer 1:
+\begin{align*}
+\underline{z^{(1)}} &= \bigl(\frac{-1}{2},\; -6\bigr)^{\!\top}, & \overline{z^{(1)}} &= \bigl(1,\; 8\bigr)^{\!\top}
+ \\
+\underline{h^{(1)}} &= \bigl(0,\; 0\bigr)^{\!\top}, & \overline{h^{(1)}} &= \bigl(1,\; 8\bigr)^{\!\top}
+\end{align*}
+Layer 2:
+\begin{align*}
+\underline{z^{(2)}} &= \bigl(-12,\; -64\bigr)^{\!\top}, & \overline{z^{(2)}} &= \bigl(26,\; 48\bigr)^{\!\top}
+ \\
+\underline{h^{(2)}} &= \bigl(0,\; 0\bigr)^{\!\top}, & \overline{h^{(2)}} &= \bigl(26,\; 48\bigr)^{\!\top}
+\end{align*}
+Layer 3:
+\begin{align*}
+\underline{z^{(3)}} &= \bigl(\frac{-73}{2}\bigr)^{\!\top}, & \overline{z^{(3)}} &= \bigl(\frac{51}{2}\bigr)^{\!\top}
+\end{align*}
+The interval upper bound on the output is $\overline{y}^{\text{interval}} = \frac{51}{2}$.
+
+\section{(ii) Symbolic interval propagation (shared relaxation domain)}
+DPNFV with method \texttt{OuterBoundsNeurify} and max\_vars = 0. Each neuron carries symbolic lower and upper bound functions
+$\underline{z}^{(k)}_i(\cdot) \le z^{(k)}_i \le \overline{z}^{(k)}_i(\cdot)$ (before activation)
+and $\underline{h}^{(k)}_i(\cdot) \le h^{(k)}_i \le \overline{h}^{(k)}_i(\cdot)$ (after activation),
+affine in the current symbols (initially only $x$).
+Both relaxation slopes use the *shared* (outer) domain
+$[\underline{z}^{\ell}_i, \overline{z}^{\ell}_i] = [\underline{z}^{u}_i, \overline{z}^{u}_i] = [\underline{z}^{(k)}_i, \overline{z}^{(k)}_i]$
+of the pre-activation bounds, with $\beta_i = -\underline{z}^{\ell}_i$.
+\paragraph{Layer 1 (ReLU).}
+Symbolic pre-activation bounds after the linear map:
+\begin{align*}
+\underline{z}^{(1)}_{1} &= -\frac{3}{4}\,x + \frac{1}{4} \\
+\underline{z}^{(1)}_{2} &= -7\,x + 1
+\end{align*}
+\begin{align*}
+\overline{z}^{(1)}_{1} &= -\frac{3}{4}\,x + \frac{1}{4} \\
+\overline{z}^{(1)}_{2} &= -7\,x + 1
+\end{align*}
+Branch domains and relaxation parameters:
+\begin{align*}
+[\underline{z}^{\ell}_i, \overline{z}^{\ell}_i] &= [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)], & [\underline{z}^{u}_i, \overline{z}^{u}_i] &= [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)], \\
+\lambda^{\ell}_i &= \bigl(\frac{2}{3},\; \frac{4}{7}\bigr), & \lambda^{u}_i &= \bigl(\frac{2}{3},\; \frac{4}{7}\bigr), & \beta_i &= \bigl(\frac{1}{2},\; 6\bigr).
+\end{align*}
+with the relaxation rule
+$\underline{h}^{(k)}_i = \lambda^{\ell}_i\, \underline{z}^{(k)}_i$ and
+$\overline{h}^{(k)}_i = \lambda^{u}_i\, \overline{z}^{(k)}_i + \lambda^{u}_i \max(\beta_i, 0)$,
+$\lambda^{\ell/u}_i = \mathrm{chord}(\underline{z}_i^{\ell/u}, \overline{z}_i^{\ell/u})$,
+\mathrm{chord}(l, u) =
+\begin{cases}
+0, & u \le 0,\\
+1, & l \ge 0,\\
+\dfrac{u}{u - l}, & \text{otherwise (crossing ReLU)}.
+\end{cases}
+Relaxed post-activation bounds:
+\begin{align*}
+\underline{h}^{(1)}_{1} &= -\frac{1}{2}\,x + \frac{1}{6} \\
+\underline{h}^{(1)}_{2} &= -4\,x + \frac{4}{7}
+\end{align*}
+\begin{align*}
+\overline{h}^{(1)}_{1} &= -\frac{1}{2}\,x + \frac{1}{2} \\
+\overline{h}^{(1)}_{2} &= -4\,x + 4
+\end{align*}
+\paragraph{Layer 2 (ReLU).}
+Symbolic pre-activation bounds after the linear map:
+\begin{align*}
+\underline{z}^{(2)}_{1} &= 5\,x + 1 \\
+\underline{z}^{(2)}_{2} &= -32
+\end{align*}
+\begin{align*}
+\overline{z}^{(2)}_{1} &= 5\,x + 15 \\
+\overline{z}^{(2)}_{2} &= \frac{32}{3}
+\end{align*}
+Branch domains and relaxation parameters:
+\begin{align*}
+[\underline{z}^{\ell}_i, \overline{z}^{\ell}_i] &= [\bigl(-4,\; -32\bigr),\; \bigl(6,\; -32\bigr)], & [\underline{z}^{u}_i, \overline{z}^{u}_i] &= [\bigl(10,\; \frac{32}{3}\bigr),\; \bigl(20,\; \frac{32}{3}\bigr)], \\
+\lambda^{\ell}_i &= \bigl(\frac{5}{6},\; \frac{1}{4}\bigr), & \lambda^{u}_i &= \bigl(\frac{5}{6},\; \frac{1}{4}\bigr), & \beta_i &= \bigl(4,\; 32\bigr).
+\end{align*}
+with the relaxation rule
+$\underline{h}^{(k)}_i = \lambda^{\ell}_i\, \underline{z}^{(k)}_i$ and
+$\overline{h}^{(k)}_i = \lambda^{u}_i\, \overline{z}^{(k)}_i + \lambda^{u}_i \max(\beta_i, 0)$,
+$\lambda^{\ell/u}_i = \mathrm{chord}(\underline{z}_i^{\ell/u}, \overline{z}_i^{\ell/u})$,
+\mathrm{chord}(l, u) =
+\begin{cases}
+0, & u \le 0,\\
+1, & l \ge 0,\\
+\dfrac{u}{u - l}, & \text{otherwise (crossing ReLU)}.
+\end{cases}
+Relaxed post-activation bounds:
+\begin{align*}
+\underline{h}^{(2)}_{1} &= \frac{25}{6}\,x + \frac{5}{6} \\
+\underline{h}^{(2)}_{2} &= -8
+\end{align*}
+\begin{align*}
+\overline{h}^{(2)}_{1} &= \frac{25}{6}\,x + \frac{95}{6} \\
+\overline{h}^{(2)}_{2} &= \frac{32}{3}
+\end{align*}
+\paragraph{Layer 3 (linear).}
+Symbolic bounds of the output (substituted):
+\begin{align*}
+\underline{y}_{1} &= -\frac{25}{6}\,x - \frac{97}{3}
+\end{align*}
+\begin{align*}
+\overline{y}_{1} &= -\frac{25}{6}\,x - \frac{10}{3}
+\end{align*}
+\paragraph{Output bounds.}
+Substituting all remaining symbols gives the affine output bounds
+\begin{align*}
+\underline{y}_{1} &= -\frac{25}{6}\,x - \frac{97}{3}
+\end{align*}
+\begin{align*}
+\overline{y}_{1} &= -\frac{25}{6}\,x - \frac{10}{3}
+\end{align*}
+\begin{equation*}
+\underline{y}^{\text{DP}} = \frac{-73}{2}, \qquad \overline{y}^{\text{DP}} = \frac{5}{6}.
+\end{equation*}
+
+\section{(iii) Symbolic interval propagation (separate relaxation domains)}
+DPNFV with method \texttt{NeurifyRelax} and max\_vars = 0. Each neuron carries symbolic lower and upper bound functions
+$\underline{z}^{(k)}_i(\cdot) \le z^{(k)}_i \le \overline{z}^{(k)}_i(\cdot)$ (before activation)
+and $\underline{h}^{(k)}_i(\cdot) \le h^{(k)}_i \le \overline{h}^{(k)}_i(\cdot)$ (after activation),
+affine in the current symbols (initially only $x$).
+The lower and the upper relaxation use *separate* domains:
+the lower slope is computed on the range of the lower branch
+$[\underline{z}^{\ell}_i, \overline{z}^{\ell}_i]$ (upper end from the upper-style substitution),
+the upper slope on the range of the upper branch
+$[\underline{z}^{u}_i, \overline{z}^{u}_i]$ (lower end from the lower-style substitution),
+with $\beta_i = -\underline{z}^{u}_i$.
+\paragraph{Layer 1 (ReLU).}
+Symbolic pre-activation bounds after the linear map:
+\begin{align*}
+\underline{z}^{(1)}_{1} &= -\frac{3}{4}\,x + \frac{1}{4} \\
+\underline{z}^{(1)}_{2} &= -7\,x + 1
+\end{align*}
+\begin{align*}
+\overline{z}^{(1)}_{1} &= -\frac{3}{4}\,x + \frac{1}{4} \\
+\overline{z}^{(1)}_{2} &= -7\,x + 1
+\end{align*}
+Branch domains and relaxation parameters:
+\begin{align*}
+[\underline{z}^{\ell}_i, \overline{z}^{\ell}_i] &= [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)], & [\underline{z}^{u}_i, \overline{z}^{u}_i] &= [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)], \\
+\lambda^{\ell}_i &= \bigl(\frac{2}{3},\; \frac{4}{7}\bigr), & \lambda^{u}_i &= \bigl(\frac{2}{3},\; \frac{4}{7}\bigr), & \beta_i &= \bigl(\frac{1}{2},\; 6\bigr).
+\end{align*}
+with the relaxation rule
+$\underline{h}^{(k)}_i = \lambda^{\ell}_i\, \underline{z}^{(k)}_i$ and
+$\overline{h}^{(k)}_i = \lambda^{u}_i\, \overline{z}^{(k)}_i + \lambda^{u}_i \max(\beta_i, 0)$,
+$\lambda^{\ell/u}_i = \mathrm{chord}(\underline{z}_i^{\ell/u}, \overline{z}_i^{\ell/u})$,
+\mathrm{chord}(l, u) =
+\begin{cases}
+0, & u \le 0,\\
+1, & l \ge 0,\\
+\dfrac{u}{u - l}, & \text{otherwise (crossing ReLU)}.
+\end{cases}
+Relaxed post-activation bounds:
+\begin{align*}
+\underline{h}^{(1)}_{1} &= -\frac{1}{2}\,x + \frac{1}{6} \\
+\underline{h}^{(1)}_{2} &= -4\,x + \frac{4}{7}
+\end{align*}
+\begin{align*}
+\overline{h}^{(1)}_{1} &= -\frac{1}{2}\,x + \frac{1}{2} \\
+\overline{h}^{(1)}_{2} &= -4\,x + 4
+\end{align*}
+\paragraph{Layer 2 (ReLU).}
+Symbolic pre-activation bounds after the linear map:
+\begin{align*}
+\underline{z}^{(2)}_{1} &= 5\,x + 1 \\
+\underline{z}^{(2)}_{2} &= -32
+\end{align*}
+\begin{align*}
+\overline{z}^{(2)}_{1} &= 5\,x + 15 \\
+\overline{z}^{(2)}_{2} &= \frac{32}{3}
+\end{align*}
+Branch domains and relaxation parameters:
+\begin{align*}
+[\underline{z}^{\ell}_i, \overline{z}^{\ell}_i] &= [\bigl(-4,\; -32\bigr),\; \bigl(6,\; -32\bigr)], & [\underline{z}^{u}_i, \overline{z}^{u}_i] &= [\bigl(10,\; \frac{32}{3}\bigr),\; \bigl(20,\; \frac{32}{3}\bigr)], \\
+\lambda^{\ell}_i &= \bigl(\frac{3}{5},\; 0\bigr), & \lambda^{u}_i &= \bigl(1,\; 1\bigr), & \beta_i &= \bigl(-10,\; \frac{-32}{3}\bigr).
+\end{align*}
+with the relaxation rule
+$\underline{h}^{(k)}_i = \lambda^{\ell}_i\, \underline{z}^{(k)}_i$ and
+$\overline{h}^{(k)}_i = \lambda^{u}_i\, \overline{z}^{(k)}_i + \lambda^{u}_i \max(\beta_i, 0)$,
+$\lambda^{\ell/u}_i = \mathrm{chord}(\underline{z}_i^{\ell/u}, \overline{z}_i^{\ell/u})$,
+\mathrm{chord}(l, u) =
+\begin{cases}
+0, & u \le 0,\\
+1, & l \ge 0,\\
+\dfrac{u}{u - l}, & \text{otherwise (crossing ReLU)}.
+\end{cases}
+Relaxed post-activation bounds:
+\begin{align*}
+\underline{h}^{(2)}_{1} &= 3\,x + \frac{3}{5} \\
+\underline{h}^{(2)}_{2} &= 0
+\end{align*}
+\begin{align*}
+\overline{h}^{(2)}_{1} &= 5\,x + 15 \\
+\overline{h}^{(2)}_{2} &= \frac{32}{3}
+\end{align*}
+\paragraph{Layer 3 (linear).}
+Symbolic bounds of the output (substituted):
+\begin{align*}
+\underline{y}_{1} &= -5\,x - \frac{51}{2}
+\end{align*}
+\begin{align*}
+\overline{y}_{1} &= -3\,x - \frac{31}{10}
+\end{align*}
+\paragraph{Output bounds.}
+Substituting all remaining symbols gives the affine output bounds
+\begin{align*}
+\underline{y}_{1} &= -5\,x - \frac{51}{2}
+\end{align*}
+\begin{align*}
+\overline{y}_{1} &= -3\,x - \frac{31}{10}
+\end{align*}
+\begin{equation*}
+\underline{y}^{\text{DP}} = \frac{-61}{2}, \qquad \overline{y}^{\text{DP}} = \frac{-1}{10}.
+\end{equation*}
+
+\section{(iii') Symbolic interval propagation with fresh variables}
+DPNFV with method \texttt{NeurifyRelax} and max\_vars = 10. Each neuron carries symbolic lower and upper bound functions
+$\underline{z}^{(k)}_i(\cdot) \le z^{(k)}_i \le \overline{z}^{(k)}_i(\cdot)$ (before activation)
+and $\underline{h}^{(k)}_i(\cdot) \le h^{(k)}_i \le \overline{h}^{(k)}_i(\cdot)$ (after activation),
+affine in the current symbols (initially only $x$).
+As in (iii), but the first neuron chosen below keeps its *exact*
+symbolic dependence as a fresh variable $\xi$: instead of relaxing it right away, $\xi = h^{(k)}_v$
+is carried symbolically and only substituted at the next layer. The stored symbolic bounds of $\xi$
+are nevertheless already \emph{relaxed} ones: they are the chord relaxations of the neuron, i.e.
+the substituted bounds of $z^{(k)}_v$ multiplied by the neuron's slopes (and shifted by the upper
+chord offset), so they inherit exactly the relaxation that rung (iii) would have applied.
+\paragraph{Layer 1 (ReLU).}
+Symbolic pre-activation bounds after the linear map:
+\begin{align*}
+\underline{z}^{(1)}_{1} &= -\frac{3}{4}\,x + \frac{1}{4} \\
+\underline{z}^{(1)}_{2} &= -7\,x + 1
+\end{align*}
+\begin{align*}
+\overline{z}^{(1)}_{1} &= -\frac{3}{4}\,x + \frac{1}{4} \\
+\overline{z}^{(1)}_{2} &= -7\,x + 1
+\end{align*}
+The crossing ReLU with the largest range is neuron 2; it becomes a fresh variable. Its symbolic bounds below are the already relaxed (chord) bounds of the neuron:
+\begin{align*}
+\xi &= h^{(1)}_{2}, & \underline{\xi}(x) &= -4\,x + \frac{4}{7}, & \overline{\xi}(x) &= -4\,x + 4.
+\end{align*}
+Branch domains and relaxation parameters:
+\begin{align*}
+[\underline{z}^{\ell}_i, \overline{z}^{\ell}_i] &= [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)], & [\underline{z}^{u}_i, \overline{z}^{u}_i] &= [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)], \\
+\lambda^{\ell}_i &= \bigl(\frac{2}{3},\; \frac{4}{7}\bigr), & \lambda^{u}_i &= \bigl(\frac{2}{3},\; \frac{4}{7}\bigr), & \beta_i &= \bigl(\frac{1}{2},\; 6\bigr).
+\end{align*}
+with the relaxation rule
+$\underline{h}^{(k)}_i = \lambda^{\ell}_i\, \underline{z}^{(k)}_i$ and
+$\overline{h}^{(k)}_i = \lambda^{u}_i\, \overline{z}^{(k)}_i + \lambda^{u}_i \max(\beta_i, 0)$,
+$\lambda^{\ell/u}_i = \mathrm{chord}(\underline{z}_i^{\ell/u}, \overline{z}_i^{\ell/u})$,
+\mathrm{chord}(l, u) =
+\begin{cases}
+0, & u \le 0,\\
+1, & l \ge 0,\\
+\dfrac{u}{u - l}, & \text{otherwise (crossing ReLU)}.
+\end{cases}
+Relaxed post-activation bounds:
+\begin{align*}
+\underline{h}^{(1)}_{1} &= -\frac{1}{2}\,x + \frac{1}{6} \\
+\underline{h}^{(1)}_{2} &= x
+\end{align*}
+\begin{align*}
+\overline{h}^{(1)}_{1} &= -\frac{1}{2}\,x + \frac{1}{2} \\
+\overline{h}^{(1)}_{2} &= x
+\end{align*}
+\paragraph{Layer 2 (ReLU).}
+Symbolic pre-activation bounds after the linear map:
+\begin{align*}
+\underline{z}^{(2)}_{1} &= 12\,x + \frac{7}{4}\,\xi \\
+\underline{z}^{(2)}_{2} &= 28\,x + 7\,\xi - 36
+\end{align*}
+\begin{align*}
+\overline{z}^{(2)}_{1} &= 12\,x + \frac{7}{4}\,\xi + 8 \\
+\overline{z}^{(2)}_{2} &= 28\,x + 7\,\xi - \frac{52}{3}
+\end{align*}
+Substituting $\xi$ by its symbolic bounds ($c\,\xi \mapsto c^{+}\,\underline{\xi}(x) + c^{-}\,\overline{\xi}(x)$ in lower-style, and crossed in upper-style substitutions):
+\begin{align*}
+\underline{z}^{(2),\ell}_{1} &= 5\,x + 1 \\
+\underline{z}^{(2),\ell}_{2} &= -32
+\end{align*}
+\begin{align*}
+\overline{z}^{(2),\ell}_{1} &= 5\,x + 7 \\
+\overline{z}^{(2),\ell}_{2} &= -8
+\end{align*}
+\begin{align*}
+\underline{z}^{(2),u}_{1} &= 5\,x + 9 \\
+\underline{z}^{(2),u}_{2} &= -\frac{40}{3}
+\end{align*}
+\begin{align*}
+\overline{z}^{(2),u}_{1} &= 5\,x + 15 \\
+\overline{z}^{(2),u}_{2} &= \frac{32}{3}
+\end{align*}
+Branch domains and relaxation parameters:
+\begin{align*}
+[\underline{z}^{\ell}_i, \overline{z}^{\ell}_i] &= [\bigl(-4,\; -32\bigr),\; \bigl(12,\; -8\bigr)], & [\underline{z}^{u}_i, \overline{z}^{u}_i] &= [\bigl(4,\; \frac{-40}{3}\bigr),\; \bigl(20,\; \frac{32}{3}\bigr)], \\
+\lambda^{\ell}_i &= \bigl(\frac{3}{4},\; 0\bigr), & \lambda^{u}_i &= \bigl(1,\; \frac{4}{9}\bigr), & \beta_i &= \bigl(-4,\; \frac{40}{3}\bigr).
+\end{align*}
+with the relaxation rule
+$\underline{h}^{(k)}_i = \lambda^{\ell}_i\, \underline{z}^{(k)}_i$ and
+$\overline{h}^{(k)}_i = \lambda^{u}_i\, \overline{z}^{(k)}_i + \lambda^{u}_i \max(\beta_i, 0)$,
+$\lambda^{\ell/u}_i = \mathrm{chord}(\underline{z}_i^{\ell/u}, \overline{z}_i^{\ell/u})$,
+\mathrm{chord}(l, u) =
+\begin{cases}
+0, & u \le 0,\\
+1, & l \ge 0,\\
+\dfrac{u}{u - l}, & \text{otherwise (crossing ReLU)}.
+\end{cases}
+Relaxed post-activation bounds:
+\begin{align*}
+\underline{h}^{(2)}_{1} &= 9\,x + \frac{21}{16}\,\xi \\
+\underline{h}^{(2)}_{2} &= 0
+\end{align*}
+\begin{align*}
+\overline{h}^{(2)}_{1} &= 12\,x + \frac{7}{4}\,\xi + 8 \\
+\overline{h}^{(2)}_{2} &= \frac{112}{9}\,x + \frac{28}{9}\,\xi - \frac{16}{9}
+\end{align*}
+\paragraph{Layer 3 (linear).}
+Symbolic bounds of the output (substituted):
+\begin{align*}
+\underline{y}_{1} &= -5\,x - \frac{51}{2}
+\end{align*}
+\begin{align*}
+\overline{y}_{1} &= -\frac{15}{4}\,x - \frac{31}{4}
+\end{align*}
+\paragraph{Output bounds.}
+Substituting all remaining symbols gives the affine output bounds
+\begin{align*}
+\underline{y}_{1} &= -5\,x - \frac{51}{2}
+\end{align*}
+\begin{align*}
+\overline{y}_{1} &= -\frac{15}{4}\,x - \frac{31}{4}
+\end{align*}
+\begin{equation*}
+\underline{y}^{\text{DP}} = \frac{-61}{2}, \qquad \overline{y}^{\text{DP}} = -4.
+\end{equation*}
+
+\section{(iv) Zonotope propagation (Theorem 3.1, DeepZ)}
+A zonotope is $Z = \langle c, G \rangle = \{c + G\epsilon : \epsilon \in [-1,1]^m\}$
+(center $c$, generators the columns of $G$); its exact interval bounds are
+$c \pm \sum_j |G_{:j}|$. The input set becomes $Z^{(0)} = \langle c^{(0)}, G^{(0)} \rangle$ with
+$c^{(0)} = (\underline{x} + \overline{x})/2$ and $G^{(0)}$ the diagonal of $(\overline{x} - \underline{x})/2$.
+Per ReLU neuron with interval bounds $[l_i, u_i]$:
+$\lambda_i = \mathrm{chord}(l_i, u_i)$ and, for crossing neurons,
+$\mathrm{ReLU}(z_i) \le \lambda_i (z_i - l_i) = \lambda_i z_i + \mu_i$ with error-generator magnitude
+$\mu_i = -\lambda_i l_i / 2 > 0$. The rectified zonotope is
+\begin{equation*}
+c' = \lambda \odot c + \mu, \qquad G' = \bigl[\, \lambda \odot G \;\big|\; \mu\, \bigr]
+\end{equation*}
+($\lambda_i = 1, \mu_i = 0$ for active, $\lambda_i = 0$ for inactive neurons;
+the new error generator $\mu_i$ has entries only in row $i$).
+For the example network:
+\paragraph{Layer 1.}
+Pre-activation zonotope: $c = \bigl(\frac{1}{4},\; 1\bigr)$, generator columns:
+\begin{align*}
+g_{1} &= \bigl(\frac{-3}{4},\; -7\bigr) \quad (\epsilon_{1}).
+\end{align*}
+Interval bounds: $l = \bigl(\frac{-1}{2},\; -6\bigr), \; u = \bigl(1,\; 8\bigr)$. 
+Crossing ReLUs at neurons 1, 2 with
+\begin{align*}
+\lambda &= \bigl(\frac{2}{3},\; \frac{4}{7}\bigr), & \mu &= \bigl(\frac{1}{6},\; \frac{12}{7}\bigr).
+\end{align*}
+Post-activation zonotope: $c' = \bigl(\frac{1}{3},\; \frac{16}{7}\bigr)$, generators:
+\begin{align*}
+g'_{1} &= \bigl(\frac{-1}{2},\; -4\bigr), &
+g'_{2} &= \bigl(\frac{1}{6},\; 0\bigr), &
+g'_{3} &= \bigl(0,\; \frac{12}{7}\bigr).
+\end{align*}
+\paragraph{Layer 2.}
+Pre-activation zonotope: $c = \bigl(8,\; \frac{-32}{3}\bigr)$, generator columns:
+\begin{align*}
+g_{1} &= \bigl(5,\; 0\bigr) \quad (\epsilon_{1}), &
+g_{2} &= \bigl(-4,\; \frac{-28}{3}\bigr) \quad (\eta^{(1)}_{1}), &
+g_{3} &= \bigl(3,\; 12\bigr) \quad (\eta^{(1)}_{2}).
+\end{align*}
+Interval bounds: $l = \bigl(-4,\; -32\bigr), \; u = \bigl(20,\; \frac{32}{3}\bigr)$. 
+Crossing ReLUs at neurons 1, 2 with
+\begin{align*}
+\lambda &= \bigl(\frac{5}{6},\; \frac{1}{4}\bigr), & \mu &= \bigl(\frac{5}{3},\; 4\bigr).
+\end{align*}
+Post-activation zonotope: $c' = \bigl(\frac{25}{3},\; \frac{4}{3}\bigr)$, generators:
+\begin{align*}
+g'_{1} &= \bigl(\frac{25}{6},\; 0\bigr), &
+g'_{2} &= \bigl(\frac{-10}{3},\; \frac{-7}{3}\bigr), &
+g'_{3} &= \bigl(\frac{5}{2},\; 3\bigr), &
+g'_{4} &= \bigl(\frac{5}{3},\; 0\bigr), &
+g'_{5} &= \bigl(0,\; 4\bigr).
+\end{align*}
+\paragraph{Layer 3.}
+Pre-activation zonotope: $c = \bigl(\frac{-107}{6}\bigr)$, generator columns:
+\begin{align*}
+g_{1} &= \bigl(\frac{32}{3}\bigr) \quad (\epsilon_{1}).
+\end{align*}
+Interval bounds: $l = \bigl(\frac{-57}{2}\bigr), \; u = \bigl(\frac{-43}{6}\bigr)$. 
+No crossing ReLUs ($\lambda = \bigl(1\bigr)$).
+Post-activation zonotope: $c' = \bigl(\frac{-107}{6}\bigr)$, generators:
+\begin{align*}
+g'_{1} &= \bigl(\frac{32}{3}\bigr).
+\end{align*}
+The zonotope upper bound on the output is $\overline{y}^{\text{zono}} = c + \sum_j |g_j| = \frac{-43}{6}$.
+
+\section{(v) CROWN backsubstitution (aCROWN initialisation pass)}
+CROWN computes the output bound by \emph{backsubstitution}: affine bound functions
+$\underline{g}(h) = \Lambda h + \gamma \le z$ and $\overline{g}(h) = \Gamma h + \gamma \ge z$
+are propagated backwards layer by layer, relaxing each ReLU by chord bounds whose slopes are taken
+from the concrete pre-activation bounds found in earlier stages of the same pass. For a neuron with
+relaxation domain $[\ell_i, u_i]$ (the concrete bounds of $z^{(k)}_i$) define
+\begin{align*}
+a^{\ell}_i &= \begin{cases} 1, & \ell_i \ge 0,\\ 0, & \text{otherwise}, \end{cases} & a^{u}_i &= \mathrm{chord}(\ell_i, u_i), & b^{u}_i &= a^{u}_i \max(-\ell_i, 0),
+\end{align*}
+so that $\mathrm{ReLU}(z_i) \ge a^{\ell}_i z_i$ and
+$\mathrm{ReLU}(z_i) \le a^{u}_i z_i + b^{u}_i$. A bound in terms of the post-activations $h$ becomes
+one in terms of the pre-activations $z$ via
+\begin{align*}
+\Lambda' &= \Lambda^{+} a^{\ell} + \Lambda^{-} a^{u}, & \gamma' &= \Lambda^{-} b^{u} + \gamma && \text{(lower)}, \
+\Gamma' &= \Gamma^{+} a^{u} + \Gamma^{-} a^{\ell}, & \gamma' &= \Gamma^{+} b^{u} + \gamma && \text{(upper)},
+\end{align*}
+with $\Lambda^{+} = \max(\Lambda, 0)$, $\Lambda^{-} = \min(\Lambda, 0)$ (analogously $\Gamma$) and the
+slope vectors acting column-wise (diagonal scaling). Composing with
+$z^{(k)} = W^{(k)} h^{(k-1)} + b^{(k)}$ yields the bound in terms of $h^{(k-1)}$. The pass runs in
+stages $i = 1, \dots, n$: stage $i$ backsubstitutes the pre-activation $z^{(i)}$ to the input, using
+the concrete bounds recorded by stages $< i$ as relaxation domains, and records
+$[\underline{z}^{(i)}, \overline{z}^{(i)}]$ for the later stages. Within each stage, $g$ and $g'$
+denote the current lower/upper bound functions (redefined at every step).
+\paragraph{Stage 1: bounds on $z^{(1)}$.}
+The bound functions are the layer map $z^{(1)} = W^{(1)} x + b^{(1)}$ itself; both branches coincide and their interval evaluation is the interval bound of rung (i).
+Interval evaluation of both branches over $[\underline{x}, \overline{x}]$ gives
+\begin{align*}
+[\underline{z}^{\ell}, \overline{z}^{\ell}] &= [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)] \quad\text{(lower branch)}, & [\underline{z}^{u}, \overline{z}^{u}] &= [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)] \quad\text{(upper branch)}, \\
+\text{recorded: } [\underline{z^{(1)}}, \overline{z^{(1)}}] &= [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)] \quad\text{(lower end from the lower, upper end from the upper branch)}.
+\end{align*}
+\paragraph{Stage 2: bounds on $z^{(2)}$.}
+Backsubstituting through layer 1 (ReLU) with relaxation domain $[\underline{z}^{(j)}, \overline{z}^{(j)}] = [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)]$ (the stage-1 result):
+\begin{align*}
+a^{\ell} &= \bigl(1,\; 1\bigr), & a^{u} &= \bigl(\frac{2}{3},\; \frac{4}{7}\bigr), & b^{u} &= \bigl(\frac{1}{3},\; \frac{24}{7}\bigr).
+\end{align*}
+Applying the relaxation rules gives bound functions in terms of $z^{(1)}$:
+\begin{align*}
+\underline{g}_{1} &= -16\,z^{(1)}_{1} + \frac{7}{4}\,z^{(1)}_{2} + 4 \\
+\underline{g}_{2} &= -\frac{112}{3}\,z^{(1)}_{1} + 7\,z^{(1)}_{2} - \frac{80}{3}
+\end{align*}
+\begin{align*}
+\overline{g}_{1} &= -24\,z^{(1)}_{1} + z^{(1)}_{2} + 18 \\
+\overline{g}_{2} &= -56\,z^{(1)}_{1} + 4\,z^{(1)}_{2} + 16
+\end{align*}
+Composing with $z^{(1)} = W^{(1)} x + b^{(1)}$ gives bound functions in terms of $x$:
+\begin{align*}
+\underline{g}'_{1} &= -\frac{1}{4}\,x + \frac{7}{4} \\
+\underline{g}'_{2} &= -21\,x - 29
+\end{align*}
+\begin{align*}
+\overline{g}'_{1} &= 11\,x + 13 \\
+\overline{g}'_{2} &= 14\,x + 6
+\end{align*}
+Interval evaluation of both branches over $[\underline{x}, \overline{x}]$ gives
+\begin{align*}
+[\underline{z}^{\ell}, \overline{z}^{\ell}] &= [\bigl(\frac{3}{2},\; -50\bigr),\; \bigl(2,\; -8\bigr)] \quad\text{(lower branch)}, & [\underline{z}^{u}, \overline{z}^{u}] &= [\bigl(2,\; -8\bigr),\; \bigl(24,\; 20\bigr)] \quad\text{(upper branch)}, \\
+\text{recorded: } [\underline{z^{(2)}}, \overline{z^{(2)}}] &= [\bigl(\frac{3}{2},\; -50\bigr),\; \bigl(24,\; 20\bigr)] \quad\text{(lower end from the lower, upper end from the upper branch)}.
+\end{align*}
+\paragraph{Stage 3: bounds on the output $y$.}
+Backsubstituting through layer 2 (ReLU) with relaxation domain $[\underline{z}^{(j)}, \overline{z}^{(j)}] = [\bigl(\frac{3}{2},\; -50\bigr),\; \bigl(24,\; 20\bigr)]$ (the stage-2 result):
+\begin{align*}
+a^{\ell} &= \bigl(1,\; 0\bigr), & a^{u} &= \bigl(1,\; \frac{2}{7}\bigr), & b^{u} &= \bigl(0,\; \frac{100}{7}\bigr).
+\end{align*}
+Applying the relaxation rules gives bound functions in terms of $z^{(2)}$:
+\begin{align*}
+\underline{g}_{1} &= -z^{(2)}_{1} - \frac{21}{2}
+\end{align*}
+\begin{align*}
+\overline{g}_{1} &= -z^{(2)}_{1} + \frac{3}{14}\,z^{(2)}_{2} + \frac{3}{14}
+\end{align*}
+Composing with $z^{(j)} = W^{(j)} h^{1} + b^{(j)}$ gives bound functions in terms of $h^{1}$:
+\begin{align*}
+\underline{g}'_{1} &= 24\,h^{1}_{1} - \frac{7}{4}\,h^{1}_{2} - \frac{45}{2}
+\end{align*}
+\begin{align*}
+\overline{g}'_{1} &= 12\,h^{1}_{1} - \frac{1}{4}\,h^{1}_{2} - \frac{27}{2}
+\end{align*}
+Backsubstituting through layer 1 (ReLU) with relaxation domain $[\underline{z}^{(j)}, \overline{z}^{(j)}] = [\bigl(\frac{-1}{2},\; -6\bigr),\; \bigl(1,\; 8\bigr)]$ (the stage-1 result):
+\begin{align*}
+a^{\ell} &= \bigl(1,\; 1\bigr), & a^{u} &= \bigl(\frac{2}{3},\; \frac{4}{7}\bigr), & b^{u} &= \bigl(\frac{1}{3},\; \frac{24}{7}\bigr).
+\end{align*}
+Applying the relaxation rules gives bound functions in terms of $z^{(1)}$:
+\begin{align*}
+\underline{g}_{1} &= 24\,z^{(1)}_{1} - z^{(1)}_{2} - \frac{57}{2}
+\end{align*}
+\begin{align*}
+\overline{g}_{1} &= 8\,z^{(1)}_{1} - \frac{1}{4}\,z^{(1)}_{2} - \frac{19}{2}
+\end{align*}
+Composing with $z^{(1)} = W^{(1)} x + b^{(1)}$ gives bound functions in terms of $x$:
+\begin{align*}
+\underline{g}'_{1} &= -11\,x - \frac{47}{2}
+\end{align*}
+\begin{align*}
+\overline{g}'_{1} &= -\frac{17}{4}\,x - \frac{31}{4}
+\end{align*}
+Interval evaluation of both branches over $[\underline{x}, \overline{x}]$ gives
+\begin{align*}
+[\underline{z}^{\ell}, \overline{z}^{\ell}] &= [\bigl(\frac{-69}{2}\bigr),\; \bigl(\frac{-25}{2}\bigr)] \quad\text{(lower branch)}, & [\underline{z}^{u}, \overline{z}^{u}] &= [\bigl(-12\bigr),\; \bigl(\frac{-7}{2}\bigr)] \quad\text{(upper branch)}, \\
+\text{recorded: } [\underline{y}, \overline{y}] &= [\bigl(\frac{-69}{2}\bigr),\; \bigl(\frac{-7}{2}\bigr)] \quad\text{(lower end from the lower, upper end from the upper branch)}.
+\end{align*}
+\paragraph{Output bound.}
+\begin{equation*}
+\underline{y}^{\text{CROWN}} = \frac{-69}{2}, \qquad \overline{y}^{\text{CROWN}} = \frac{-7}{2}.
+\end{equation*}
+
+\section{(vi) NNPoly with quadratic relaxations (PolyCROWN initialisation pass)}
+With the single input $x = c + r\,\epsilon$, $\epsilon \in [-1, 1]$ (center $c = \bigl(0\bigr)$, radius $r = \bigl(1\bigr)$), the first-layer pre-activations are exact affine polynomials in $\epsilon$, $z^{(1)}_i = z^{(1)}_{i,0} + z^{(1)}_{i,1}\,\epsilon$:
+\begin{align*}
+z^{(1)}_{1} &= -\frac{3}{4}\,\epsilon + \frac{1}{4} \\
+z^{(1)}_{2} &= -7\,\epsilon + 1
+\end{align*}
+Their exact bounds $\underline{z}^{(1)}_i = z^{(1)}_{i,0} - |z^{(1)}_{i,1}|$ and $\overline{z}^{(1)}_i = z^{(1)}_{i,0} + |z^{(1)}_{i,1}|$ agree with the interval rung (i):
+\begin{align*}
+\underline{z^{(1)}} &= \bigl(\frac{-1}{2},\; -6\bigr)^{\!\top}, & \overline{z^{(1)}} &= \bigl(1,\; 8\bigr)^{\!\top}.
+\end{align*}
+Each crossing ReLU neuron (with $\ell_i = \underline{z}^{(1)}_i < 0 < u_i = \overline{z}^{(1)}_i$)
+receives a quadratic (CROWNQuad) relaxation; active and inactive neurons use $\mathrm{ReLU}(z) \le z$
+and $\mathrm{ReLU}(z) = 0$. For crossing neurons:
+\begin{align*}
+\text{upper: } \mathrm{ReLU}(z) &\le \begin{cases} \dfrac{-l u^2 + (l^2 + u^2)\, z - l\, z^2}{(l - u)^2}, & -l \le u, \\[3mm] \dfrac{l^2 u - 2 l u\, z + u\, z^2}{(l - u)^2}, & -l > u, \end{cases} \\[2mm]
+\text{lower: } \mathrm{ReLU}(z) &\ge \begin{cases} z, & u \ge -2l, \\[3mm] \dfrac{-l u\, z + u\, z^2}{u^2 - l u}, & -l < u < -2l, \\[3mm] 0, & u \le -l. \end{cases}
+\end{align*}
+Per-neuron monomial coefficients $c_i = (c_0, c_1, c_2)$ with $\mathrm{ReLU}(z_i) \lesseqgtr c_0 + c_1 z_i + c_2 z_i^2$:
+\begin{align*}
+c^{\ell}_{1} &= \bigl(0,\; 1,\; 0\bigr), & c^{u}_{1} &= \bigl(\frac{2}{9},\; \frac{5}{9},\; \frac{2}{9}\bigr) \\
+c^{\ell}_{2} &= \bigl(0,\; \frac{3}{7},\; \frac{1}{14}\bigr), & c^{u}_{2} &= \bigl(\frac{96}{49},\; \frac{25}{49},\; \frac{3}{98}\bigr)
+\end{align*}
+Substituting $z^{(1)}_i(\epsilon) = z^{(1)}_{i,0} + z^{(1)}_{i,1} \epsilon$ into the relaxation
+polynomials (with $z^2 = z_0^2 + 2 z_0 z_1 \epsilon + z_1^2 \epsilon^2$) gives the quolynomial
+(degree-2 polynomial) bounds of the post-activations:
+\begin{align*}
+\hat{h}^{(1),\ell}_{1} &= -\frac{3}{4}\,\epsilon + \frac{1}{4} \\
+\hat{h}^{(1),\ell}_{2} &= -4\,\epsilon + \frac{7}{2}\,\epsilon^2 + \frac{1}{2}
+\end{align*}
+\begin{align*}
+\hat{h}^{(1),u}_{1} &= -\frac{1}{2}\,\epsilon + \frac{1}{8}\,\epsilon^2 + \frac{3}{8} \\
+\hat{h}^{(1),u}_{2} &= -4\,\epsilon + \frac{3}{2}\,\epsilon^2 + \frac{5}{2}
+\end{align*}
+Concrete bounds of a quolynomial $q(\epsilon) = q_0 + q_1 \epsilon + q_2 \epsilon^2$ over
+$\epsilon \in [-1, 1]$ follow from the monomial ranges $1 \in [1, 1]$, $\epsilon \in [-1, 1]$,
+$\epsilon^2 \in [0, 1]$, i.e. from $q_0 \pm |q_1|$ and the sign of $q_2$:
+\begin{equation*}
+q \in \bigl[\, q_0 - |q_1| + \min(q_2, 0), \;\; q_0 + |q_1| + \max(q_2, 0) \,\bigr].
+\end{equation*}
+Applied to the quolynomial bounds of $h^{(1)}$ (lower branch for the lower end, upper branch for the upper end):
+\begin{align*}
+\underline{\hat{h}^{(1)}} &= \bigl(\frac{-1}{2},\; \frac{-7}{2}\bigr)^{\!\top}, & \overline{\hat{h}^{(1)}} &= \bigl(1,\; 8\bigr)^{\!\top}.
+\end{align*}
+Composing the linear map $z^{(2)} = W^{(2)} h^{(1)} + b^{(2)}$ with the quolynomial bounds
+(positive coefficients read the lower bound polynomial $\hat{h}^{\ell}$, negative coefficients the
+upper one $\hat{h}^{u}$; the bias enters the constant monomial) gives quolynomial bounds of
+$z^{(2)}$:
+\begin{align*}
+\underline{z}^{(2)}_{1} &= 5\,\epsilon + \frac{25}{8}\,\epsilon^2 + \frac{31}{8} \\
+\underline{z}^{(2)}_{2} &= \frac{35}{2}\,\epsilon^2 - \frac{51}{2}
+\end{align*}
+\begin{align*}
+\overline{z}^{(2)}_{1} &= 11\,\epsilon + \frac{21}{8}\,\epsilon^2 + \frac{83}{8} \\
+\overline{z}^{(2)}_{2} &= 14\,\epsilon + \frac{21}{2}\,\epsilon^2 - \frac{9}{2}
+\end{align*}
+Their concrete bounds (same monomial rule, now over the mph{quolynomial} domain, which is tighter than the interval rung):
+\begin{align*}
+\underline{z^{(2)}} &= \bigl(\frac{-9}{8},\; \frac{-51}{2}\bigr)^{\!\top}, & \overline{z^{(2)}} &= \bigl(24,\; 20\bigr)^{\!\top}.
+\end{align*}
+The output $y = W^{(3)} h^{(2)} + b^{(3)}$ is backsubstituted through ReLU layer 2 with the linear chord rules of rung (v), using the quolynomial-domain bounds
+$[\underline{z}^{(2)}, \overline{z}^{(2)}]$ as relaxation domains:
+\begin{align*}
+a^{\ell} &= \bigl(1,\; 0\bigr), & a^{u} &= \bigl(\frac{64}{67},\; \frac{40}{91}\bigr), & b^{u} &= \bigl(\frac{72}{67},\; \frac{1020}{91}\bigr).
+\end{align*}
+Relaxing ReLU layer 2 gives bound functions in terms of $z^{(2)}$:
+\begin{align*}
+\underline{g}_{1} &= -\frac{64}{67}\,z^{(2)}_{1} - \frac{1551}{134}
+\end{align*}
+\begin{align*}
+\overline{g}_{1} &= -z^{(2)}_{1} + \frac{30}{91}\,z^{(2)}_{2} - \frac{381}{182}
+\end{align*}
+Composing with $z^{(2)} = W^{(2)} h^{(1)} + b^{(2)}$ gives bound functions in terms of $h^{(1)}$:
+\begin{align*}
+\underline{g}'_{1} &= \frac{1536}{67}\,h^{(1)}_{1} - \frac{112}{67}\,h^{(1)}_{2} - \frac{3087}{134}
+\end{align*}
+\begin{align*}
+\overline{g}'_{1} &= \frac{72}{13}\,h^{(1)}_{1} + \frac{29}{52}\,h^{(1)}_{2} - \frac{435}{26}
+\end{align*}
+Composing these bound functions with the quolynomial bounds of $h^{(1)}$ (positive
+coefficients read $\hat{h}^{u}$ resp.\ $\hat{h}^{\ell}$ as appropriate, the shift $\gamma$ enters the
+constant monomial) yields polynomial bounds on the output:
+\begin{align*}
+\underline{y}_{1} &= -\frac{704}{67}\,\epsilon - \frac{168}{67}\,\epsilon^2 - \frac{2879}{134}
+\end{align*}
+\begin{align*}
+\overline{y}_{1} &= -5\,\epsilon + \frac{159}{104}\,\epsilon^2 - \frac{1379}{104}
+\end{align*}
+Evaluating both over the monomial domain gives
+\begin{equation*}
+\underline{y}^{\text{NNPoly}} = \frac{-69}{2}, \qquad \overline{y}^{\text{NNPoly}} = \frac{-175}{26}.
+\end{equation*}
+
+\section{Summary: the bound ladder}
+Collecting the upper bounds; they are ordered loose to tight from (i) to (vi)
+(and further tightened by the optimised variants):
+\begin{table}[ht]\centering
+\begin{tabular}{llc}\toprule
+rung & algorithm & $\overline{y}$ \\
+\midrule
+(i) & interval propagation & \frac{51}{2} \\
+(ii) & symbolic interval (shared domains) & \frac{5}{6} \\
+(iii) & symbolic interval (separate domains) & \frac{-1}{10} \\
+(iii') & symbolic interval + fresh variables & -4 \\
+(iv) & zonotope propagation (DeepZ) & \frac{-43}{6} \\
+(v) & CROWN backsubstitution & \frac{-7}{2} \\
+(vi) & NNPoly (quadratic relaxations) & \frac{-175}{26} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\end{document}
