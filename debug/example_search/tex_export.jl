@@ -419,11 +419,11 @@ end
 
 """
 Exact replication of the PolyCROWN initialisation forward pass (rung vi, `n_steps=0`)
-for a **single-input** network: CROWNQuad quolynomial relaxation of the first ReLU layer,
-backsubstitution through the remaining layers w.r.t. the quolynomial domain, and the
+for a **single-input** network: CROWNQuad quadratic polynomial relaxation of the first ReLU layer,
+backsubstitution through the remaining layers w.r.t. the quadratic polynomial domain, and the
 final output polynomials.
 
-Returns the relaxation coefficients, the quolynomial coefficients (in `ϵ ∈ [-1,1]`,
+Returns the relaxation coefficients, the quadratic polynomial coefficients (in `ϵ ∈ [-1,1]`,
 where `x = center + radius * ϵ`), the poly-domain bounds per layer, the slopes, the
 output polynomial coefficients and the concrete output bounds — all exact.
 """
@@ -446,7 +446,7 @@ function _tex_pcrown0_run(Ws, bs, input_set)
     c_l = [_crownquad_lower(l1[i], u1[i]) for i in eachindex(l1)]
     c_u = [_crownquad_upper(l1[i], u1[i]) for i in eachindex(l1)]
 
-    # ---- quolynomial post-activation: c0 + c1*z(ϵ) + c2*z(ϵ)^2, monomials [1, ϵ, ϵ²]
+    # ---- quadratic polynomial post-activation: c0 + c1*z(ϵ) + c2*z(ϵ)^2, monomials [1, ϵ, ϵ²]
     # L̂ rows = lower relaxation composition, Û rows = upper relaxation composition
     L_poly = zeros(T, length(l1), 3)
     U_poly = zeros(T, length(l1), 3)
@@ -470,7 +470,7 @@ function _tex_pcrown0_run(Ws, bs, input_set)
     l_hat, _ = _poly_bounds(L_poly)
     _, u_hat = _poly_bounds(U_poly)
 
-    # ---- layer-2 pre-act bounds w.r.t. the *quolynomial* domain ( tighter than intervals )
+    # ---- layer-2 pre-act bounds w.r.t. the *quadratic polynomial* domain ( tighter than intervals )
     W2 = T.(Ws[2]); b2 = T.(bs[2])
     W2p = max.(W2, 0); W2m = min.(W2, 0)
     G2_l = W2m * U_poly .+ W2p * L_poly; G2_l[:, 1] .+= b2     # lower branch (const monomial col)
@@ -493,12 +493,12 @@ function _tex_pcrown0_run(Ws, bs, input_set)
         γu_out = max.(Γu, 0) * b_u .+ γu
         push!(steps, (j=j, a_l=a_l, a_u=a_u, b_u=b_u, Λl_out=Λl_out, γl_out=γl_out,
                       Λu_out=Λu_out, γu_out=γu_out))
-        # compose with layer j's linear map (into the quolynomial domain of layer 1)
+        # compose with layer j's linear map (into the quadratic polynomial domain of layer 1)
         Γl = Λl_out * W2; γl = Λl_out * b2 .+ γl_out
         Γu = Λu_out * W2; γu = Λu_out * b2 .+ γu_out
     end
 
-    # ---- output polynomials: compose the bound function with the quolynomial
+    # ---- output polynomials: compose the bound function with the quadratic polynomial
     # upper: positive Γ coefficients read Û, negative read L̂ (common generators);
     # translation by γ adds to the constant column
     U_out = max.(Γu, 0) * U_poly .+ min.(Γu, 0) * L_poly
@@ -571,13 +571,13 @@ function _section_interval(trace)
     io = IOBuffer()
     n_layers = length(trace)
     println(io, "\\section{(i) Interval propagation}")
-    println(io, raw"""Interval propagation (Box) with $W^{(k)+} = \max(W^{(k)}, 0)$ and
-$W^{(k)-} = \min(W^{(k)}, 0)$, starting from $\underline{h}^{(0)} = \underline{x}$,
-$\overline{h}^{(0)} = \overline{x}$:""")
+    println(io, raw"""Interval propagation (Box), starting from $\underline{h}^{(0)} = \underline{x}$ and
+$\overline{h}^{(0)} = \overline{x}$, with $W^{(k)+} = \max(W^{(k)}, 0)$,
+$W^{(k)-} = \min(W^{(k)}, 0)$:""")
     println(io, "\\begin{align*}")
-    println(io, raw"\underline{z}^{(k)} &= W^{(k)+}\, \underline{h}^{(k-1)} + W^{(k)-}\, \overline{h}^{(k-1)} + b^{(k)}, &")
-    println(io, raw"\overline{z}^{(k)} &= W^{(k)+}\, \overline{h}^{(k-1)} + W^{(k)-}\, \underline{h}^{(k-1)} + b^{(k)},")
-    println(io, raw"\underline{h}^{(k)} &= \max(\underline{z}^{(k)}, 0), & \overline{h}^{(k)} &= \max(\overline{z}^{(k)}, 0) \quad (\text{ReLU layers}).")
+    println(io, raw"\underline{z}^{(k)} &= W^{(k)+}\, \underline{h}^{(k-1)} + W^{(k)-}\, \overline{h}^{(k-1)} + b^{(k)}, \\ ")
+    println(io, raw"\overline{z}^{(k)} &= W^{(k)+}\, \overline{h}^{(k-1)} + W^{(k)-}\, \underline{h}^{(k-1)} + b^{(k)}, \\ ")
+    println(io, raw"\underline{h}^{(k)} &= \max(\underline{z}^{(k)}, 0), \qquad \overline{h}^{(k)} = \max(\overline{z}^{(k)}, 0) \quad (\text{ReLU layers}).")
     println(io, "\\end{align*}")
     for t in trace
         println(io, "Layer $(t.k):")
@@ -594,12 +594,13 @@ $\overline{h}^{(0)} = \overline{x}$:""")
 end
 
 # ---- rungs (ii)/(iii)/(iii'): DPNFV --------------------------------------------------------
-_tex_chord_def() = raw"""\mathrm{chord}(l, u) =
+_tex_chord_def() = raw"""\[
+\mathrm{chord}(l, u) =
 \begin{cases}
 0, & u \le 0,\\
 1, & l \ge 0,\\
 \dfrac{u}{u - l}, & \text{otherwise (crossing ReLU)}.
-\end{cases}"""
+\end{cases}\]"""
 
 function _section_dpnfv(Ws, bs, input_set; run)
     io = IOBuffer()
@@ -618,18 +619,18 @@ and $\underline{h}^{(k)}_i(\cdot) \le h^{(k)}_i \le \overline{h}^{(k)}_i(\cdot)$
 affine in the current symbols (initially only $x$).""")
 
     if run.kind == :outer
-        println(io, raw"""Both relaxation slopes use the *shared* (outer) domain
+        println(io, raw"""Both relaxation slopes use the \emph{shared} (outer) domain
 $[\underline{z}^{\ell}_i, \overline{z}^{\ell}_i] = [\underline{z}^{u}_i, \overline{z}^{u}_i] = [\underline{z}^{(k)}_i, \overline{z}^{(k)}_i]$
 of the pre-activation bounds, with $\beta_i = -\underline{z}^{\ell}_i$.""")
     elseif run.kind == :sep
-        println(io, raw"""The lower and the upper relaxation use *separate* domains:
+        println(io, raw"""The lower and the upper relaxation use \emph{separate} domains:
 the lower slope is computed on the range of the lower branch
 $[\underline{z}^{\ell}_i, \overline{z}^{\ell}_i]$ (upper end from the upper-style substitution),
 the upper slope on the range of the upper branch
 $[\underline{z}^{u}_i, \overline{z}^{u}_i]$ (lower end from the lower-style substitution),
 with $\beta_i = -\underline{z}^{u}_i$.""")
     else
-        println(io, raw"""As in (iii), but the first neuron chosen below keeps its *exact*
+        println(io, raw"""As in (iii), but the first neuron chosen below keeps its \emph{exact}
 symbolic dependence as a fresh variable $\xi$: instead of relaxing it right away, $\xi = h^{(k)}_v$
 is carried symbolically and only substituted at the next layer. The stored symbolic bounds of $\xi$
 are nevertheless already \emph{relaxed} ones: they are the chord relaxations of the neuron, i.e.
@@ -679,8 +680,8 @@ chord offset), so they inherit exactly the relaxation that rung (iii) would have
         println(io, "Branch domains and relaxation parameters:")
         println(io, "\\begin{align*}")
         println(io, "[\\underline{z}^{\\ell}_i, \\overline{z}^{\\ell}_i] &= [" *
-                tex_list(cap.low_low; T=false) * ",\\; " * tex_list(cap.low_up; T=false) * "], & " *
-                "[\\underline{z}^{u}_i, \\overline{z}^{u}_i] &= [" *
+                tex_list(cap.low_low; T=false) * ",\\; " * tex_list(cap.low_up; T=false) * "], \\\\ ")
+        println(io, "[\\underline{z}^{u}_i, \\overline{z}^{u}_i] &= [" *
                 tex_list(cap.up_low; T=false) * ",\\; " * tex_list(cap.up_up; T=false) * "], \\\\")
         println(io, "\\lambda^{\\ell}_i &= " * tex_list(cap.lam_l; T=false) * ", & " *
                 "\\lambda^{u}_i &= " * tex_list(cap.lam_u; T=false) * ", & " *
@@ -790,7 +791,7 @@ relaxation domain $[\ell_i, u_i]$ (the concrete bounds of $z^{(k)}_i$) define"""
 $\mathrm{ReLU}(z_i) \le a^{u}_i z_i + b^{u}_i$. A bound in terms of the post-activations $h$ becomes
 one in terms of the pre-activations $z$ via""")
     println(io, "\\begin{align*}")
-    println(io, raw"\Lambda' &= \Lambda^{+} a^{\ell} + \Lambda^{-} a^{u}, & \gamma' &= \Lambda^{-} b^{u} + \gamma && \text{(lower)}, \\")
+    println(io, raw"\Lambda' &= \Lambda^{+} a^{\ell} + \Lambda^{-} a^{u}, & \gamma' &= \Lambda^{-} b^{u} + \gamma && \text{(lower)}, \\ ")
     println(io, raw"\Gamma' &= \Gamma^{+} a^{u} + \Gamma^{-} a^{\ell}, & \gamma' &= \Gamma^{+} b^{u} + \gamma && \text{(upper)},")
     println(io, "\\end{align*}")
     println(io, raw"""with $\Lambda^{+} = \max(\Lambda, 0)$, $\Lambda^{-} = \min(\Lambda, 0)$ (analogously $\Gamma$) and the
@@ -830,16 +831,16 @@ denote the current lower/upper bound functions (redefined at every step).""")
             println(io, tex_symbolic_lines("\\underline{g}'", s.Λl_out * T.(Ws[j]), s.Λl_out * T.(bs[j]) .+ s.γl_out; vars=hvars))
             println(io, tex_symbolic_lines("\\overline{g}'", s.Λu_out * T.(Ws[j]), s.Λu_out * T.(bs[j]) .+ s.γu_out; vars=hvars))
         end
-        println(io, "Interval evaluation of both branches over \$[\\underline{x}, \\overline{x}]\$ gives")
+        println(io, "Interval evaluation of both branches over \$[\\underline{x}, \\overline{x}]\$ gives (the lower end " *
+                "of the recorded interval comes from the lower branch, the upper end from the upper branch):")
         println(io, "\\begin{align*}")
         println(io, "[\\underline{z}^{\\ell}, \\overline{z}^{\\ell}] &= [" * tex_list(st.ll; T=false) * ",\\; " *
-                tex_list(st.lu; T=false) * "] \\quad\\text{(lower branch)}, & " *
-                "[\\underline{z}^{u}, \\overline{z}^{u}] &= [" * tex_list(st.ul; T=false) * ",\\; " *
-                tex_list(st.uu; T=false) * "] \\quad\\text{(upper branch)}, \\\\")
+                tex_list(st.lu; T=false) * "] \\quad\\text{(lower)}, \\\\")
+        println(io, "[\\underline{z}^{u}, \\overline{z}^{u}] &= [" * tex_list(st.ul; T=false) * ",\\; " *
+                tex_list(st.uu; T=false) * "] \\quad\\text{(upper)}, \\\\")
         tgt_rec = st.i == n_layers ? "y" : "z^{($(st.i))}"
         println(io, "\\text{recorded: } [\\underline{" * tgt_rec * "}, \\overline{" * tgt_rec * "}] &= [" *
-                tex_list(st.ll; T=false) * ",\\; " * tex_list(st.uu; T=false) * "] " *
-                raw"\quad\text{(lower end from the lower, upper end from the upper branch)}.")
+                tex_list(st.ll; T=false) * ",\\; " * tex_list(st.uu; T=false) * "].")
         println(io, "\\end{align*}")
     end
     println(io, "\\paragraph{Output bound.}")
@@ -850,7 +851,7 @@ denote the current lower/upper bound functions (redefined at every step).""")
     return String(take!(io))
 end
 
-# ---- rung (vi): NNPoly / PolyCROWN initialisation (quolynomial relaxation) -------------------
+# ---- rung (vi): NNPoly / PolyCROWN initialisation (quadratic polynomial relaxation) -------------------
 function _section_pcrown0(run)
     io = IOBuffer()
     println(io, "\\section{(vi) NNPoly with quadratic relaxations (PolyCROWN initialisation pass)}")
@@ -877,37 +878,37 @@ and $\mathrm{ReLU}(z) = 0$. For crossing neurons:""")
     println(io, tex_aligned(["c^{\\ell}_{$i} &= " * tex_list(run.c_l[i]; T=false) * ", & c^{u}_{$i} &= " *
                              tex_list(run.c_u[i]; T=false) for i in eachindex(run.c_l)]))
     println(io, raw"""Substituting $z^{(1)}_i(\epsilon) = z^{(1)}_{i,0} + z^{(1)}_{i,1} \epsilon$ into the relaxation
-polynomials (with $z^2 = z_0^2 + 2 z_0 z_1 \epsilon + z_1^2 \epsilon^2$) gives the quolynomial
-(degree-2 polynomial) bounds of the post-activations:""")
+polynomials (with $z^2 = z_0^2 + 2 z_0 z_1 \epsilon + z_1^2 \epsilon^2$) gives the quadratic
+(degree-2) polynomial bounds of the post-activations:""")
     println(io, tex_symbolic_lines("\\hat{h}^{(1),\\ell}", run.L_poly[:, 2:3], run.L_poly[:, 1];
                                    vars=["\\epsilon", "\\epsilon^2"]))
     println(io, tex_symbolic_lines("\\hat{h}^{(1),u}", run.U_poly[:, 2:3], run.U_poly[:, 1];
                                    vars=["\\epsilon", "\\epsilon^2"]))
-    println(io, raw"""Concrete bounds of a quolynomial $q(\epsilon) = q_0 + q_1 \epsilon + q_2 \epsilon^2$ over
+    println(io, raw"""Concrete bounds of a quadratic polynomial $q(\epsilon) = q_0 + q_1 \epsilon + q_2 \epsilon^2$ over
 $\epsilon \in [-1, 1]$ follow from the monomial ranges $1 \in [1, 1]$, $\epsilon \in [-1, 1]$,
 $\epsilon^2 \in [0, 1]$, i.e. from $q_0 \pm |q_1|$ and the sign of $q_2$:""")
     println(io, "\\begin{equation*}")
     println(io, raw"q \in \bigl[\, q_0 - |q_1| + \min(q_2, 0), \;\; q_0 + |q_1| + \max(q_2, 0) \,\bigr].")
     println(io, "\\end{equation*}")
-    println(io, "Applied to the quolynomial bounds of \$h^{(1)}\$ (lower branch for the lower end, upper branch for the upper end):")
+    println(io, "Applied to the quadratic polynomial bounds of \$h^{(1)}\$ (lower branch for the lower end, upper branch for the upper end):")
     println(io, "\\begin{align*}")
     println(io, join(_tex_pair_lines("\\hat{h}^{(1)}", run.l_hat, run.u_hat), ", & ") * ".")
     println(io, "\\end{align*}")
-    println(io, raw"""Composing the linear map $z^{(2)} = W^{(2)} h^{(1)} + b^{(2)}$ with the quolynomial bounds
+    println(io, raw"""Composing the linear map $z^{(2)} = W^{(2)} h^{(1)} + b^{(2)}$ with the quadratic polynomial bounds
 (positive coefficients read the lower bound polynomial $\hat{h}^{\ell}$, negative coefficients the
-upper one $\hat{h}^{u}$; the bias enters the constant monomial) gives quolynomial bounds of
+upper one $\hat{h}^{u}$; the bias enters the constant monomial) gives quadratic polynomial bounds of
 $z^{(2)}$:""")
     println(io, tex_symbolic_lines("\\underline{z}^{(2)}", run.G2_l[:, 2:3], run.G2_l[:, 1];
                                    vars=["\\epsilon", "\\epsilon^2"]))
     println(io, tex_symbolic_lines("\\overline{z}^{(2)}", run.G2_u[:, 2:3], run.G2_u[:, 1];
                                    vars=["\\epsilon", "\\epsilon^2"]))
-    println(io, "Their concrete bounds (same monomial rule, now over the \emph{quolynomial} domain, " *
+    println(io, raw"Their concrete bounds (same monomial rule, now over the \emph{quadratic} domain, " *
             "which is tighter than the interval rung):")
     println(io, "\\begin{align*}")
     println(io, join(_tex_pair_lines("z^{(2)}", run.l2, run.u2), ", & ") * ".")
     println(io, "\\end{align*}")
     println(io, "The output \$y = W^{(3)} h^{(2)} + b^{(3)}\$ is backsubstituted through ReLU layer 2 " *
-            raw"""with the linear chord rules of rung (v), using the quolynomial-domain bounds
+            raw"""with the linear chord rules of rung (v), using the quadratic-domain bounds
 $[\underline{z}^{(2)}, \overline{z}^{(2)}]$ as relaxation domains:""")
     s = run.steps[1]
     println(io, "\\begin{align*}")
@@ -922,7 +923,7 @@ $[\underline{z}^{(2)}, \overline{z}^{(2)}]$ as relaxation domains:""")
     println(io, "Composing with \$z^{(2)} = W^{(2)} h^{(1)} + b^{(2)}\$ gives bound functions in terms of \$h^{(1)}\$:")
     println(io, tex_symbolic_lines("\\underline{g}'", run.Γl, run.γl; vars=h1vars))
     println(io, tex_symbolic_lines("\\overline{g}'", run.Γu, run.γu; vars=h1vars))
-    println(io, raw"""Composing these bound functions with the quolynomial bounds of $h^{(1)}$ (positive
+    println(io, raw"""Composing these bound functions with the quadratic polynomial bounds of $h^{(1)}$ (positive
 coefficients read $\hat{h}^{u}$ resp.\ $\hat{h}^{\ell}$ as appropriate, the shift $\gamma$ enters the
 constant monomial) yields polynomial bounds on the output:""")
     println(io, tex_symbolic_lines("\\underline{y}", run.L_out[:, 2:3], run.L_out[:, 1];
@@ -959,14 +960,14 @@ function _section_summary(vals; n_steps_opt=nothing, opt_vals=nothing)
             ("vi", "NNPoly (quadratic relaxations)", vals.pcrown0)]
     for (r, name, v) in rows
         vstr = v === nothing ? raw"\text{(multi-input)}" : _tex_val(v)
-        println(io, "($r) & $name & $vstr \\\\")
+        println(io, "($r) & $name & \$" * vstr * "\$ \\\\")
     end
     if n_steps_opt !== nothing && opt_vals !== nothing
         println(io, "\\midrule")
-        println(io, raw"(vii) & CROWN, optimised slopes & " * _tex_val(opt_vals.acrown_opt) * " \\\\")
-        println(io, raw"(viii) & NNPoly, optimised slopes & " * _tex_val(opt_vals.pcrown_opt) * " \\\\")
+        println(io, raw"(vii) & CROWN, optimised slopes & $" * _tex_val(opt_vals.acrown_opt) * raw"$ \\ ")
+        println(io, raw"(viii) & NNPoly, optimised slopes & $" * _tex_val(opt_vals.pcrown_opt) * raw"$ \\ ")
         println(io, raw"\multicolumn{3}{l}{\footnotesize optimised with $n_{\text{steps}} = " *
-                string(n_steps_opt) * raw"$ gradient steps} \\")
+                string(n_steps_opt) * raw"$ gradient steps} \\ ")
     end
     println(io, "\\bottomrule\n\\end{tabular}")
     println(io, "\\end{table}")
@@ -989,7 +990,7 @@ Validate all exact replications of the tex exporter against the real solvers.
 Compares rung by rung:
 (i) interval, (ii)/(iii)/(iii') DPNFV (bounds, substituted matrices and per-layer pre-activation
 bounds), (iv) zonotope, (v) aCROWN(0) (per-stage bounds and the final Λ/Γ), and — for single-input
-networks — (vi) PolyCROWN(0) (pre-activation bounds, relaxation coefficients α, quolynomial bounds,
+networks — (vi) PolyCROWN(0) (pre-activation bounds, relaxation coefficients α, quadratic polynomial bounds,
 poly-domain bounds, backsubstitution matrices and the final bounds).
 
 Returns `(dev, ok, tol)` with `dev` a Dict of label => relative deviation and `ok` the overall pass.
@@ -1048,7 +1049,7 @@ function validate_propagation(Ws, bs, input_set=default_input_set(); tol=1e-9, v
             _rdm([run_p.c_u[i][2] for i in eachindex(run_p.c_u)], α[:, 1, 2]),
             _rdm([run_p.c_u[i][3] for i in eachindex(run_p.c_u)], α[:, 2, 2]))
 
-        # recompute the quolynomial state exactly like the initialisation run (init = true)
+        # recompute the quadratic polynomial state exactly like the initialisation run (init = true)
         ipsolver = NP.DiffNNPolySym(truncation_terms=ps.truncation_terms,
                                     separate_relaxations=ps.separate_relaxations,
                                     relaxations=ps.relaxations, splitting_depth=ps.splitting_depth,
@@ -1062,7 +1063,7 @@ function validate_propagation(Ws, bs, input_set=default_input_set(); tol=1e-9, v
         dev["(vi) l_hat/u_hat"] = max(_rdm(run_p.l_hat, l_hat_r), _rdm(run_p.u_hat, u_hat_r))
         dev["(vi) l2/u2"] = max(_rdm(run_p.l2, lbs_p[2]), _rdm(run_p.u2, ubs_p[2]))
 
-        # backsubstitution through the linear part over the quolynomial domain
+        # backsubstitution through the linear part over the quadratic polynomial domain
         s_crown = NV.forward_network(solver.lin_solver, net_pcrown[2:end], s_poly, lbs_p[2:end], ubs_p[2:end])
         dev["(vi) Gamma/gamma"] = max(_rdm(run_p.Γl, s_crown.Λ), _rdm(run_p.γl, s_crown.λ),
                                       _rdm(run_p.Γu, s_crown.Γ), _rdm(run_p.γu, s_crown.γ))

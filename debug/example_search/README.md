@@ -62,6 +62,9 @@ Exempt: NNPoly polynomials and the optimized rungs (vii)/(viii).
 ```julia
 include("debug/example_search/ExampleSearch.jl")
 
+# retrieve one of the stored candidates
+c = ExampleSearch.get_saved_candidate(idx)
+
 # inspect a candidate
 ExampleSearch.print_candidate(idx)
 ExampleSearch.print_bound_representation(idx, NP.DPNFV(max_vars=10))
@@ -113,14 +116,18 @@ exactly `δ` — all link margins are preserved bit-for-bit and denominators nev
 grow (p/q → (p+δq)/q). Sweeping δ over a fractional grid is a free prettiness
 optimization (worst numerator of #808: 455 → 435 at δ = +2.5).
 
-## Search outcome (as of 2026-10-31)
+## Search outcome (as of 2026-11-02)
 
-Best-known candidates (registry #813/#816, both `:accepted` with all 9 links
-strict and niceness 0/123 violations, `BEST_CANDIDATE.md` has details):
+Best-known candidates (registry #813/#816/#817, all `:accepted` with all 9
+links strict and niceness 0/123 violations, `BEST_CANDIDATE.md` has details):
 
+* **#817**, thesis flagship: #816 with `b3 → b3 − 8` — every rung (i)–(vii)
+  keeps a positive upper bound and only rung (viii) NNPoly (optimised slopes)
+  gets ≤ 0 (−45991/56255), so `y ≤ 0` is provable only by the final NNPoly
+  polynomials; denominators unchanged (0/123 violations, max den 7)
 * **#813**, num-optimal: max numerator 76, max denominator 10
 * **#816**, den-optimal: max denominator 7, max numerator 89, all-positive
-  bound ladder
+  bound ladder (pre-shift state of #817)
 
 Both are proven vertices of the b3-shift ridges of one network family (SA
 rounds 2–3 converged to them from independent starts; the ridges degrade

@@ -34,7 +34,7 @@ make_network_npi(Ws, bs; last_act=NV.Id()) = NV.NetworkNegPosIdx(make_network(Ws
 """
 Build a `Flux.Chain` of `NP.CROWNLayer`s for aCROWN / PolyCROWN.
 
-With `poly=true` the first ReLU layer gets a 2x2 α tensor (quolynomial
+With `poly=true` the first ReLU layer gets a 2x2 α tensor (quadratic polynomial
 relaxation parameters) as used by PolyCROWN.
 """
 function make_crown_chain(Ws, bs; poly=false, last_act=NV.Id())
